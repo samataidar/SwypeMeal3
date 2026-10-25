@@ -1,12 +1,15 @@
-import { motion, AnimatePresence } from 'framer-motion';
 import { HistoryItem } from '../types';
 import { Clock, Flame, Star, Trash2, Calendar } from 'lucide-react';
-import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
 
 interface HistoryProps {
   history: HistoryItem[];
   onRemove: (id: string) => void;
+}
+
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  return `${date.getDate()} ${months[date.getMonth()]}`;
 }
 
 export default function History({ history, onRemove }: HistoryProps) {
@@ -22,7 +25,10 @@ export default function History({ history, onRemove }: HistoryProps) {
 
   // Stats
   const totalMeals = history.length;
-  const avgRating = history.filter(h => h.rating).reduce((sum, h) => sum + (h.rating || 0), 0) / (history.filter(h => h.rating).length || 1);
+  const ratedItems = history.filter(h => h.rating);
+  const avgRating = ratedItems.length > 0
+    ? ratedItems.reduce((sum, h) => sum + (h.rating || 0), 0) / ratedItems.length
+    : 0;
   const totalCalories = history.reduce((sum, h) => sum + h.recipe.calories, 0);
   const totalTime = history.reduce((sum, h) => sum + h.recipe.cookTime, 0);
 
@@ -53,64 +59,57 @@ export default function History({ history, onRemove }: HistoryProps) {
 
       {/* History items */}
       <div className="space-y-3">
-        <AnimatePresence>
-          {history.map((item, index) => (
-            <motion.div
-              key={item.id}
-              layout
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, x: 100 }}
-              transition={{ delay: index * 0.05 }}
-              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
-            >
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center text-2xl">
-                  {item.recipe.image}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between">
-                    <h3 className="font-semibold text-gray-900 truncate">{item.recipe.title}</h3>
-                    <button
-                      onClick={() => onRemove(item.id)}
-                      className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-3 mt-1">
-                    <span className="flex items-center gap-1 text-xs text-gray-500">
-                      <Calendar size={12} />
-                      {format(new Date(item.cookedAt), 'd MMM', { locale: ru })}
-                    </span>
-                    <span className="flex items-center gap-1 text-xs text-gray-500">
-                      <Clock size={12} />
-                      {item.recipe.cookTime} мин
-                    </span>
-                    <span className="flex items-center gap-1 text-xs text-gray-500">
-                      <Flame size={12} />
-                      {item.recipe.calories} ккал
-                    </span>
-                  </div>
-                  {item.rating && (
-                    <div className="flex items-center gap-0.5 mt-1">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Star
-                          key={star}
-                          size={12}
-                          className={star <= item.rating! ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}
-                        />
-                      ))}
-                    </div>
-                  )}
-                  {item.notes && (
-                    <p className="text-xs text-gray-500 mt-1 italic line-clamp-2">"{item.notes}"</p>
-                  )}
-                </div>
+        {history.map((item) => (
+          <div
+            key={item.id}
+            className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 transition-all hover:shadow-md"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center text-2xl">
+                {item.recipe.image}
               </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between">
+                  <h3 className="font-semibold text-gray-900 truncate">{item.recipe.title}</h3>
+                  <button
+                    onClick={() => onRemove(item.id)}
+                    className="p-1.5 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="flex items-center gap-1 text-xs text-gray-500">
+                    <Calendar size={12} />
+                    {formatDate(item.cookedAt)}
+                  </span>
+                  <span className="flex items-center gap-1 text-xs text-gray-500">
+                    <Clock size={12} />
+                    {item.recipe.cookTime} мин
+                  </span>
+                  <span className="flex items-center gap-1 text-xs text-gray-500">
+                    <Flame size={12} />
+                    {item.recipe.calories} ккал
+                  </span>
+                </div>
+                {item.rating && (
+                  <div className="flex items-center gap-0.5 mt-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        size={12}
+                        className={star <= item.rating! ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}
+                      />
+                    ))}
+                  </div>
+                )}
+                {item.notes && (
+                  <p className="text-xs text-gray-500 mt-1 italic line-clamp-2">"{item.notes}"</p>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

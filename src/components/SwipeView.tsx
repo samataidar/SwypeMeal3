@@ -1,5 +1,4 @@
-import { useState, useRef } from 'react';
-import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Recipe } from '../types';
 import { Heart, X, Clock, Flame, Info, RotateCcw } from 'lucide-react';
 
@@ -8,25 +7,11 @@ interface SwipeCardProps {
   onSwipeLeft: () => void;
   onSwipeRight: () => void;
   onInfo: () => void;
+  isTop: boolean;
+  offsetX: number;
 }
 
-function SwipeCard({ recipe, onSwipeLeft, onSwipeRight, onInfo }: SwipeCardProps) {
-  const x = useMotionValue(0);
-  const rotate = useTransform(x, [-200, 200], [-15, 15]);
-  const likeOpacity = useTransform(x, [0, 100], [0, 1]);
-  const nopeOpacity = useTransform(x, [-100, 0], [1, 0]);
-  const cardRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-
-  const handleDragEnd = (_: any, info: any) => {
-    setIsDragging(false);
-    if (info.offset.x > 100) {
-      onSwipeRight();
-    } else if (info.offset.x < -100) {
-      onSwipeLeft();
-    }
-  };
-
+function SwipeCard({ recipe, onSwipeLeft, onSwipeRight, onInfo, isTop, offsetX }: SwipeCardProps) {
   const difficultyColor = {
     easy: 'bg-green-100 text-green-700',
     medium: 'bg-yellow-100 text-yellow-700',
@@ -39,40 +24,44 @@ function SwipeCard({ recipe, onSwipeLeft, onSwipeRight, onInfo }: SwipeCardProps
     hard: 'Сложно',
   };
 
+  const rotation = offsetX * 0.08;
+  const likeOpacity = Math.max(0, Math.min(1, offsetX / 100));
+  const nopeOpacity = Math.max(0, Math.min(1, -offsetX / 100));
+
   return (
-    <motion.div
-      ref={cardRef}
-      style={{ x, rotate }}
-      drag="x"
-      dragConstraints={{ left: 0, right: 0 }}
-      onDragStart={() => setIsDragging(true)}
-      onDragEnd={handleDragEnd}
-      className="absolute w-full max-w-sm mx-auto cursor-grab active:cursor-grabbing"
-      whileTap={{ scale: 1.02 }}
+    <div
+      className={`absolute w-full transition-transform ${isTop ? 'duration-0' : 'duration-300'}`}
+      style={{
+        transform: isTop
+          ? `translateX(${offsetX}px) rotate(${rotation}deg)`
+          : `translateY(8px) scale(0.95)`,
+        zIndex: isTop ? 10 : 5,
+        opacity: isTop ? 1 : 0.6,
+      }}
     >
       <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
         {/* Image/Emoji area */}
         <div className="relative h-48 bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center">
-          <span className="text-8xl">{recipe.image}</span>
-          
+          <span className="text-8xl select-none">{recipe.image}</span>
+
           {/* Like indicator */}
-          <motion.div
+          <div
+            className="absolute top-4 left-4 bg-green-500 text-white px-4 py-2 rounded-xl font-bold text-lg -rotate-12 border-4 border-green-300 pointer-events-none"
             style={{ opacity: likeOpacity }}
-            className="absolute top-4 left-4 bg-green-500 text-white px-4 py-2 rounded-xl font-bold text-lg rotate-[-15deg] border-4 border-green-300"
           >
             В ОЧЕРЕДЬ!
-          </motion.div>
-          
+          </div>
+
           {/* Nope indicator */}
-          <motion.div
+          <div
+            className="absolute top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-xl font-bold text-lg rotate-12 border-4 border-red-300 pointer-events-none"
             style={{ opacity: nopeOpacity }}
-            className="absolute top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-xl font-bold text-lg rotate-[15deg] border-4 border-red-300"
           >
             НЕТ
-          </motion.div>
+          </div>
 
           {/* Difficulty badge */}
-          <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-medium ${difficultyColor[recipe.difficulty]}`}>
+          <div className={`absolute bottom-3 right-3 px-3 py-1 rounded-full text-xs font-medium ${difficultyColor[recipe.difficulty]}`}>
             {difficultyLabel[recipe.difficulty]}
           </div>
         </div>
@@ -115,7 +104,7 @@ function SwipeCard({ recipe, onSwipeLeft, onSwipeRight, onInfo }: SwipeCardProps
 
           {/* Tags */}
           <div className="flex flex-wrap gap-1">
-            {recipe.tags.map((tag) => (
+            {recipe.tags.slice(0, 4).map((tag) => (
               <span key={tag} className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">
                 #{tag}
               </span>
@@ -123,7 +112,7 @@ function SwipeCard({ recipe, onSwipeLeft, onSwipeRight, onInfo }: SwipeCardProps
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -137,29 +126,68 @@ interface SwipeViewProps {
 export default function SwipeView({ recipes: availableRecipes, onLike, onDislike, onReset }: SwipeViewProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
-  const [exitDirection, setExitDirection] = useState<'left' | 'right' | null>(null);
+  const [offsetX, setOffsetX] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [exitAnim, setExitAnim] = useState<'left' | 'right' | null>(null);
+  const startXRef = useRef(0);
+  const startOffsetRef = useRef(0);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleSwipeRight = () => {
-    if (currentIndex < availableRecipes.length) {
-      setExitDirection('right');
-      setTimeout(() => {
+  const SWIPE_THRESHOLD = 100;
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    setIsDragging(true);
+    startXRef.current = e.clientX;
+    startOffsetRef.current = offsetX;
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  }, [offsetX]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!isDragging) return;
+    const delta = e.clientX - startXRef.current;
+    setOffsetX(startOffsetRef.current + delta);
+  }, [isDragging]);
+
+  const handlePointerUp = useCallback(() => {
+    if (!isDragging) return;
+    setIsDragging(false);
+
+    if (offsetX > SWIPE_THRESHOLD) {
+      triggerSwipe('right');
+    } else if (offsetX < -SWIPE_THRESHOLD) {
+      triggerSwipe('left');
+    } else {
+      setOffsetX(0);
+    }
+  }, [isDragging, offsetX]);
+
+  const triggerSwipe = (direction: 'left' | 'right') => {
+    setExitAnim(direction);
+    setOffsetX(direction === 'right' ? 500 : -500);
+
+    setTimeout(() => {
+      if (direction === 'right') {
         onLike(availableRecipes[currentIndex]);
-        setCurrentIndex((prev) => prev + 1);
-        setExitDirection(null);
-      }, 200);
-    }
+      } else {
+        onDislike(availableRecipes[currentIndex]);
+      }
+      setCurrentIndex((prev) => prev + 1);
+      setOffsetX(0);
+      setExitAnim(null);
+    }, 250);
   };
 
-  const handleSwipeLeft = () => {
-    if (currentIndex < availableRecipes.length) {
-      setExitDirection('left');
-      setTimeout(() => {
-        onDislike(availableRecipes[currentIndex]);
-        setCurrentIndex((prev) => prev + 1);
-        setExitDirection(null);
-      }, 200);
-    }
+  const handleButtonSwipe = (direction: 'left' | 'right') => {
+    if (currentIndex >= availableRecipes.length) return;
+    triggerSwipe(direction);
   };
+
+  // Reset index when recipes change (after reset)
+  useEffect(() => {
+    if (currentIndex > 0 && availableRecipes.length > 0 && currentIndex >= availableRecipes.length) {
+      setCurrentIndex(0);
+    }
+  }, [availableRecipes.length]);
 
   if (availableRecipes.length === 0 || currentIndex >= availableRecipes.length) {
     return (
@@ -179,85 +207,73 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
   }
 
   const currentRecipe = availableRecipes[currentIndex];
-  const nextRecipe = availableRecipes[currentIndex + 1];
+  const nextRecipe = currentIndex + 1 < availableRecipes.length ? availableRecipes[currentIndex + 1] : null;
 
   return (
     <div className="flex flex-col items-center h-full px-4 py-4">
       {/* Card stack */}
-      <div className="relative w-full max-w-sm flex-1 flex items-center justify-center">
+      <div
+        ref={containerRef}
+        className="relative w-full max-w-sm flex-1 flex items-center justify-center select-none"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        style={{ touchAction: 'pan-y' }}
+      >
         {/* Background card */}
         {nextRecipe && (
-          <motion.div
-            key={nextRecipe.id + '-bg'}
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 0.95, opacity: 1 }}
-            className="absolute w-full"
-          >
-            <div className="bg-white rounded-3xl shadow-lg overflow-hidden border border-gray-100 opacity-50">
-              <div className="h-48 bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center">
-                <span className="text-8xl opacity-50">{nextRecipe.image}</span>
-              </div>
-              <div className="p-5">
-                <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
-                <div className="h-4 bg-gray-100 rounded w-full mb-1"></div>
-                <div className="h-4 bg-gray-100 rounded w-2/3"></div>
-              </div>
-            </div>
-          </motion.div>
+          <SwipeCard
+            recipe={nextRecipe}
+            onSwipeLeft={() => {}}
+            onSwipeRight={() => {}}
+            onInfo={() => {}}
+            isTop={false}
+            offsetX={0}
+          />
         )}
 
         {/* Current card */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentRecipe.id}
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{
-              x: exitDirection === 'right' ? 300 : exitDirection === 'left' ? -300 : 0,
-              opacity: 0,
-              rotate: exitDirection === 'right' ? 15 : exitDirection === 'left' ? -15 : 0,
-            }}
-            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            className="w-full"
-          >
-            <SwipeCard
-              recipe={currentRecipe}
-              onSwipeLeft={handleSwipeLeft}
-              onSwipeRight={handleSwipeRight}
-              onInfo={() => setSelectedRecipe(currentRecipe)}
-            />
-          </motion.div>
-        </AnimatePresence>
+        <div
+          className="absolute w-full"
+          style={{
+            transition: exitAnim ? 'transform 0.25s ease-out, opacity 0.25s ease-out' : isDragging ? 'none' : 'transform 0.3s ease-out',
+            opacity: exitAnim ? 0 : 1,
+          }}
+        >
+          <SwipeCard
+            recipe={currentRecipe}
+            onSwipeLeft={() => handleButtonSwipe('left')}
+            onSwipeRight={() => handleButtonSwipe('right')}
+            onInfo={() => setSelectedRecipe(currentRecipe)}
+            isTop={true}
+            offsetX={offsetX}
+          />
+        </div>
       </div>
 
       {/* Action buttons */}
       <div className="flex items-center justify-center gap-6 mt-6 mb-4">
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={handleSwipeLeft}
-          className="w-16 h-16 bg-white rounded-full shadow-lg flex items-center justify-center border-2 border-red-200 hover:border-red-400 transition-colors"
+        <button
+          onClick={() => handleButtonSwipe('left')}
+          className="w-16 h-16 bg-white rounded-full shadow-lg flex items-center justify-center border-2 border-red-200 hover:border-red-400 hover:bg-red-50 active:scale-95 transition-all"
         >
           <X size={28} className="text-red-500" />
-        </motion.button>
+        </button>
 
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
+        <button
           onClick={() => setSelectedRecipe(currentRecipe)}
-          className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center border-2 border-blue-200 hover:border-blue-400 transition-colors"
+          className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50 active:scale-95 transition-all"
         >
           <Info size={20} className="text-blue-500" />
-        </motion.button>
+        </button>
 
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={handleSwipeRight}
-          className="w-16 h-16 bg-white rounded-full shadow-lg flex items-center justify-center border-2 border-green-200 hover:border-green-400 transition-colors"
+        <button
+          onClick={() => handleButtonSwipe('right')}
+          className="w-16 h-16 bg-white rounded-full shadow-lg flex items-center justify-center border-2 border-green-200 hover:border-green-400 hover:bg-green-50 active:scale-95 transition-all"
         >
           <Heart size={28} className="text-green-500" />
-        </motion.button>
+        </button>
       </div>
 
       {/* Progress */}
@@ -266,29 +282,21 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
       </div>
 
       {/* Recipe detail modal */}
-      <AnimatePresence>
-        {selectedRecipe && (
-          <RecipeDetail recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)} />
-        )}
-      </AnimatePresence>
+      {selectedRecipe && (
+        <RecipeDetail recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)} />
+      )}
     </div>
   );
 }
 
 function RecipeDetail({ recipe, onClose }: { recipe: Recipe; onClose: () => void }) {
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+    <div
+      className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4 animate-fade-in"
       onClick={onClose}
     >
-      <motion.div
-        initial={{ y: 100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 100, opacity: 0 }}
-        className="bg-white rounded-3xl max-w-lg w-full max-h-[85vh] overflow-y-auto"
+      <div
+        className="bg-white rounded-3xl max-w-lg w-full max-h-[85vh] overflow-y-auto animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6">
@@ -324,7 +332,7 @@ function RecipeDetail({ recipe, onClose }: { recipe: Recipe; onClose: () => void
             <ul className="space-y-1">
               {recipe.ingredients.map((ing, i) => (
                 <li key={i} className="text-sm text-gray-600 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 bg-orange-400 rounded-full"></span>
+                  <span className="w-1.5 h-1.5 bg-orange-400 rounded-full flex-shrink-0"></span>
                   {ing}
                 </li>
               ))}
@@ -353,7 +361,7 @@ function RecipeDetail({ recipe, onClose }: { recipe: Recipe; onClose: () => void
             Закрыть
           </button>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }

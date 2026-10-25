@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { QueueItem } from '../types';
-import { Clock, Flame, Check, Trash2, ChefHat, Star, X } from 'lucide-react';
+import { Clock, Flame, Check, Trash2, ChefHat, Star } from 'lucide-react';
 
 interface CookQueueProps {
   queue: QueueItem[];
@@ -60,131 +59,116 @@ export default function CookQueue({ queue, onRemove, onCook }: CookQueueProps) {
 
       {/* Queue items */}
       <div className="space-y-3">
-        <AnimatePresence>
-          {queue.map((item, index) => (
-            <motion.div
-              key={item.id}
-              layout
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, x: -100 }}
-              transition={{ delay: index * 0.05 }}
-              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
-            >
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center text-2xl">
-                  {item.recipe.image}
+        {queue.map((item, index) => (
+          <div
+            key={item.id}
+            className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 transition-all hover:shadow-md"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center text-2xl">
+                {item.recipe.image}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-gray-900 truncate">{item.recipe.title}</h3>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="flex items-center gap-1 text-xs text-gray-500">
+                    <Clock size={12} />
+                    {item.recipe.cookTime} мин
+                  </span>
+                  <span className="flex items-center gap-1 text-xs text-gray-500">
+                    <Flame size={12} />
+                    {item.recipe.calories} ккал
+                  </span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-gray-900 truncate">{item.recipe.title}</h3>
-                  <div className="flex items-center gap-3 mt-1">
-                    <span className="flex items-center gap-1 text-xs text-gray-500">
-                      <Clock size={12} />
-                      {item.recipe.cookTime} мин
-                    </span>
-                    <span className="flex items-center gap-1 text-xs text-gray-500">
-                      <Flame size={12} />
-                      {item.recipe.calories} ккал
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-400 mt-1">
-                    #{index + 1} в очереди
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <button
-                    onClick={() => setCookingId(item.id)}
-                    className="p-2 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-colors"
-                    title="Приготовлено"
-                  >
-                    <ChefHat size={16} />
-                  </button>
-                  <button
-                    onClick={() => onRemove(item.id)}
-                    className="p-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors"
-                    title="Удалить"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                <div className="text-xs text-gray-400 mt-1">
+                  #{index + 1} в очереди
                 </div>
               </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+              <div className="flex flex-col gap-1">
+                <button
+                  onClick={() => setCookingId(item.id)}
+                  className="p-2 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-colors"
+                  title="Приготовлено"
+                >
+                  <ChefHat size={16} />
+                </button>
+                <button
+                  onClick={() => onRemove(item.id)}
+                  className="p-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors"
+                  title="Удалить"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Cooking completion modal */}
-      <AnimatePresence>
-        {cookingItem && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-            onClick={() => setCookingId(null)}
+      {cookingItem && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setCookingId(null)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-sm w-full p-6 animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
           >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-3xl max-w-sm w-full p-6"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="text-center mb-4">
-                <span className="text-5xl">{cookingItem.recipe.image}</span>
-                <h3 className="text-xl font-bold mt-2">{cookingItem.recipe.title}</h3>
-                <p className="text-gray-500 text-sm mt-1">Отметьте как приготовленное!</p>
-              </div>
+            <div className="text-center mb-4">
+              <span className="text-5xl">{cookingItem.recipe.image}</span>
+              <h3 className="text-xl font-bold mt-2">{cookingItem.recipe.title}</h3>
+              <p className="text-gray-500 text-sm mt-1">Отметьте как приготовленное!</p>
+            </div>
 
-              {/* Rating */}
-              <div className="mb-4">
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Оценка</label>
-                <div className="flex justify-center gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      onClick={() => setRating(star)}
-                      className="transition-transform hover:scale-110"
-                    >
-                      <Star
-                        size={28}
-                        className={star <= rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}
-                      />
-                    </button>
-                  ))}
-                </div>
+            {/* Rating */}
+            <div className="mb-4">
+              <label className="text-sm font-medium text-gray-700 mb-2 block">Оценка</label>
+              <div className="flex justify-center gap-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    onClick={() => setRating(star)}
+                    className="transition-transform hover:scale-110"
+                  >
+                    <Star
+                      size={28}
+                      className={star <= rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}
+                    />
+                  </button>
+                ))}
               </div>
+            </div>
 
-              {/* Notes */}
-              <div className="mb-4">
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Заметки</label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Что получилось? Что изменить в следующий раз?"
-                  className="w-full p-3 border border-gray-200 rounded-xl text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-orange-300"
-                />
-              </div>
+            {/* Notes */}
+            <div className="mb-4">
+              <label className="text-sm font-medium text-gray-700 mb-2 block">Заметки</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Что получилось? Что изменить в следующий раз?"
+                className="w-full p-3 border border-gray-200 rounded-xl text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-orange-300"
+              />
+            </div>
 
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setCookingId(null)}
-                  className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-2xl font-medium hover:bg-gray-200 transition-colors"
-                >
-                  Отмена
-                </button>
-                <button
-                  onClick={handleCookComplete}
-                  className="flex-1 py-3 bg-green-500 text-white rounded-2xl font-medium hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Check size={18} />
-                  Готово!
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCookingId(null)}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-2xl font-medium hover:bg-gray-200 transition-colors"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleCookComplete}
+                className="flex-1 py-3 bg-green-500 text-white rounded-2xl font-medium hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
+              >
+                <Check size={18} />
+                Готово!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
