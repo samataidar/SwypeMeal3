@@ -1,6 +1,5 @@
 """
 SwypeMeal Backend - Supabase REST API Version
-Использует Supabase через HTTPS REST API (работает через IPv4)
 """
 
 from fastapi import FastAPI, HTTPException
@@ -11,6 +10,7 @@ import os
 import json
 from datetime import datetime
 import uuid
+import httpx
 
 app = FastAPI(title="SwypeMeal API", version="2.0.0")
 
@@ -18,49 +18,129 @@ app = FastAPI(title="SwypeMeal API", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Supabase configuration
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 USE_SUPABASE = os.getenv("USE_SUPABASE", "false").lower() == "true"
 
 print(f"[DEBUG] SUPABASE_URL: {'SET' if SUPABASE_URL else 'NOT SET'}")
 print(f"[DEBUG] SUPABASE_KEY: {'SET' if SUPABASE_KEY else 'NOT SET'}")
 print(f"[DEBUG] USE_SUPABASE: {USE_SUPABASE}")
 
-supabase_client = None
+# ============================================
+# Supabase REST API Client (using httpx directly)
+# ============================================
+
+class SupabaseClient:
+    """Simple Supabase REST API client using httpx"""
+    
+    def __init__(self, url: str, key: str):
+        self.url = url.rstrip("/")
+        self.rest_url = f"{self.url}/rest/v1"
+        self.headers = {
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation",
+        }
+    
+    def _request(self, method: str, path: str, **kwargs) -> dict:
+        """Make a request to Supabase REST API"""
+        url = f"{self.rest_url}{path}"
+        with httpx.Client(timeout=10.0) as client:
+            response = client.request(method, url, headers=self.headers, **kwargs)
+            if response.status_code >= 400:
+                raise Exception(f"Supabase error {response.status_code}: {response.text}")
+            if response.text:
+                return response.json()
+            return {}
+    
+    def select(self, table: str, query: str = "*", filters: dict = None, order: str = None, limit: int = None) -> list:
+        """Select records from a table"""
+        params = {"select": query}
+        if filters:
+            for key, value in filters.items():
+                params[key] = f"eq.{value}"
+        if order:
+            params["order"] = order
+        if limit:
+            params["limit"] = str(limit)
+        
+        result = self._request("GET", f"/{table}", params=params)
+        return result if isinstance(result, list) else []
+    
+    def insert(self, table: str, data: dict) -> dict:
+        """Insert a record into a table"""
+        return self._request("POST", f"/{table}", json=data)
+    
+    def upsert(self, table: str, data: dict, on_conflict: str = None) -> dict:
+        """Upsert a record"""
+        headers = {**self.headers, "Prefer": "return=representation,resolution=merge-duplicates"}
+        if on_conflict:
+            headers["on_conflict"] = on_conflict
+        url = f"{self.rest_url}/{table}"
+        with httpx.Client(timeout=10.0) as client:
+            response = client.post(url, headers=headers, json=data)
+            if response.status_code >= 400:
+                raise Exception(f"Supabase error {response.status_code}: {response.text}")
+            if response.text:
+                return response.json()
+            return {}
+    
+    def delete(self, table: str, filters: dict) -> None:
+        """Delete records from a table"""
+        params = {}
+        for key, value in filters.items():
+            params[key] = f"eq.{value}"
+        self._request("DELETE", f"/{table}", params=params)
+    
+    def rpc(self, function_name: str, params: dict = None) -> dict:
+        """Call a stored procedure"""
+        return self._request("POST", f"/rpc/{function_name}", json=params or {})
+    
+    def test_connection(self) -> bool:
+        """Test connection to Supabase"""
+        try:
+            self.select("recipes", limit=1)
+            return True
+        except Exception as e:
+            print(f"Connection test failed: {e}")
+            return False
+
+
+supabase: Optional[SupabaseClient] = None
 
 if USE_SUPABASE and SUPABASE_URL and SUPABASE_KEY:
     try:
-        from supabase import create_client
         print(f"[DEBUG] Connecting to Supabase via REST API...")
-        supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        supabase = SupabaseClient(SUPABASE_URL, SUPABASE_KEY)
         
-        # Test connection
-        supabase_client.table('recipes').select('id').limit(1).execute()
-        
-        print(f"✓ Supabase connected successfully via REST API")
+        if supabase.test_connection():
+            print(f"✓ Supabase connected successfully via REST API")
+        else:
+            print(f"✗ Supabase connection test failed")
+            USE_SUPABASE = False
+            supabase = None
     except Exception as e:
         print(f"✗ Supabase connection failed: {e}")
-        print(f"  Error type: {type(e).__name__}")
-        import traceback
-        traceback.print_exc()
-        print("  Falling back to file storage")
         USE_SUPABASE = False
-        supabase_client = None
+        supabase = None
 else:
     print("⚠ Supabase mode disabled, using file storage")
 
+# ============================================
 # File storage fallback
+# ============================================
+
 DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
 def load_user_state(user_id: str) -> dict:
-    """Load user state from JSON file"""
     filepath = os.path.join(DATA_DIR, f"{user_id}.json")
     if os.path.exists(filepath):
         with open(filepath, "r", encoding="utf-8") as f:
@@ -79,57 +159,113 @@ def load_user_state(user_id: str) -> dict:
     }
 
 def save_user_state(user_id: str, state: dict):
-    """Save user state to JSON file"""
     filepath = os.path.join(DATA_DIR, f"{user_id}.json")
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(state, f, ensure_ascii=False, indent=2)
 
-# Supabase helper functions
+# ============================================
+# Supabase helpers
+# ============================================
+
+def ensure_user_exists(user_id: str):
+    """Ensure user exists in the users table"""
+    try:
+        existing = supabase.select("users", filters={"id": user_id})
+        if not existing:
+            supabase.insert("users", {"id": user_id})
+    except Exception as e:
+        print(f"Warning: Could not ensure user exists: {e}")
+
+def ensure_recipe_exists(recipe: dict):
+    """Ensure recipe exists in the recipes table"""
+    try:
+        existing = supabase.select("recipes", filters={"id": recipe["id"]})
+        if not existing:
+            supabase.insert("recipes", {
+                "id": recipe["id"],
+                "title": recipe["title"],
+                "description": recipe["description"],
+                "image": recipe["image"],
+                "cook_time": recipe["cook_time"],
+                "servings": recipe["servings"],
+                "calories": recipe["calories"],
+                "protein": recipe["protein"],
+                "fat": recipe["fat"],
+                "carbs": recipe["carbs"],
+                "ingredients": recipe["ingredients"],
+                "steps": recipe["steps"],
+                "tags": recipe["tags"],
+                "difficulty": recipe["difficulty"],
+                "is_custom": False,
+                "status": "approved"
+            })
+    except Exception as e:
+        print(f"Warning: Could not ensure recipe exists: {e}")
+
 def supabase_get_user_state(user_id: str) -> dict:
     """Load user state from Supabase"""
     try:
-        # Get queue
-        queue_response = supabase_client.table('queue_items').select('*, recipes(*)').eq('user_id', user_id).order('position').execute()
+        # Get queue with recipe data
+        queue_data = supabase.select(
+            "queue_items",
+            query="*, recipes(*)",
+            filters={"user_id": user_id},
+            order="position.asc"
+        )
         queue = []
-        for item in queue_response.data:
+        for item in queue_data:
+            recipe = item.get("recipes", {})
             queue.append({
-                "id": item['id'],
-                "recipe": item['recipes'],
-                "added_at": item['added_at'],
-                "planned_date": item.get('planned_date')
+                "id": item["id"],
+                "recipe": recipe,
+                "added_at": item.get("added_at"),
+                "planned_date": item.get("planned_date")
             })
         
-        # Get history
-        history_response = supabase_client.table('history_items').select('*, recipes(*)').eq('user_id', user_id).order('cooked_at', desc=True).execute()
+        # Get history with recipe data
+        history_data = supabase.select(
+            "history_items",
+            query="*, recipes(*)",
+            filters={"user_id": user_id},
+            order="cooked_at.desc"
+        )
         history = []
-        for item in history_response.data:
+        for item in history_data:
+            recipe = item.get("recipes", {})
             history.append({
-                "id": item['id'],
-                "recipe": item['recipes'],
-                "cooked_at": item['cooked_at'],
-                "rating": item.get('rating'),
-                "notes": item.get('notes')
+                "id": item["id"],
+                "recipe": recipe,
+                "cooked_at": item.get("cooked_at"),
+                "rating": item.get("rating"),
+                "notes": item.get("notes")
             })
         
-        # Get swiped
-        swiped_response = supabase_client.table('swiped_recipes').select('recipe_id').eq('user_id', user_id).execute()
-        swiped_ids = [item['recipe_id'] for item in swiped_response.data]
+        # Get swiped recipe ids
+        swiped_data = supabase.select(
+            "swiped_recipes",
+            query="recipe_id",
+            filters={"user_id": user_id}
+        )
+        swiped_ids = [item["recipe_id"] for item in swiped_data]
         
         # Get preferences
-        prefs_response = supabase_client.table('user_preferences').select('*').eq('user_id', user_id).execute()
+        prefs_data = supabase.select(
+            "user_preferences",
+            filters={"user_id": user_id}
+        )
         preferences = {
             "max_calories": 800,
             "max_cook_time": 60,
             "exclude_tags": [],
             "preferred_difficulty": ["easy", "medium", "hard"]
         }
-        if prefs_response.data:
-            pref = prefs_response.data[0]
+        if prefs_data:
+            pref = prefs_data[0]
             preferences = {
-                "max_calories": pref.get('max_calories', 800),
-                "max_cook_time": pref.get('max_cook_time', 60),
-                "exclude_tags": pref.get('exclude_tags', []),
-                "preferred_difficulty": pref.get('preferred_difficulty', ["easy", "medium", "hard"])
+                "max_calories": pref.get("max_calories", 800),
+                "max_cook_time": pref.get("max_cook_time", 60),
+                "exclude_tags": pref.get("exclude_tags", []),
+                "preferred_difficulty": pref.get("preferred_difficulty", ["easy", "medium", "hard"])
             }
         
         return {
@@ -143,127 +279,67 @@ def supabase_get_user_state(user_id: str) -> dict:
         print(f"Error loading from Supabase: {e}")
         return load_user_state(user_id)
 
-def supabase_save_queue(user_id: str, queue: list):
-    """Save queue to Supabase"""
+def supabase_save_state(user_id: str, state: dict):
+    """Save entire user state to Supabase atomically"""
     try:
-        # Delete existing queue
-        supabase_client.table('queue_items').delete().eq('user_id', user_id).execute()
+        # Ensure user exists first
+        ensure_user_exists(user_id)
         
-        # Insert new queue items
-        for i, item in enumerate(queue):
-            recipe = item['recipe']
-            
-            # Ensure recipe exists
-            existing = supabase_client.table('recipes').select('id').eq('id', recipe['id']).execute()
-            if not existing.data:
-                supabase_client.table('recipes').insert({
-                    'id': recipe['id'],
-                    'title': recipe['title'],
-                    'description': recipe['description'],
-                    'image': recipe['image'],
-                    'cook_time': recipe['cook_time'],
-                    'servings': recipe['servings'],
-                    'calories': recipe['calories'],
-                    'protein': recipe['protein'],
-                    'fat': recipe['fat'],
-                    'carbs': recipe['carbs'],
-                    'ingredients': recipe['ingredients'],
-                    'steps': recipe['steps'],
-                    'tags': recipe['tags'],
-                    'difficulty': recipe['difficulty']
-                }).execute()
-            
-            # Add to queue
-            supabase_client.table('queue_items').insert({
-                'id': item['id'],
-                'user_id': user_id,
-                'recipe_id': recipe['id'],
-                'position': i,
-                'added_at': item.get('added_at')
-            }).execute()
-    except Exception as e:
-        print(f"Error saving queue to Supabase: {e}")
-
-def supabase_save_history(user_id: str, history: list):
-    """Save history to Supabase"""
-    try:
-        # Delete existing history
-        supabase_client.table('history_items').delete().eq('user_id', user_id).execute()
+        # Save queue
+        supabase.delete("queue_items", {"user_id": user_id})
+        for i, item in enumerate(state.get("queue", [])):
+            recipe = item["recipe"]
+            ensure_recipe_exists(recipe)
+            supabase.insert("queue_items", {
+                "id": item["id"],
+                "user_id": user_id,
+                "recipe_id": recipe["id"],
+                "position": i,
+                "added_at": item.get("added_at")
+            })
         
-        # Insert new history items
-        for item in history:
-            recipe = item['recipe']
-            
-            # Ensure recipe exists
-            existing = supabase_client.table('recipes').select('id').eq('id', recipe['id']).execute()
-            if not existing.data:
-                supabase_client.table('recipes').insert({
-                    'id': recipe['id'],
-                    'title': recipe['title'],
-                    'description': recipe['description'],
-                    'image': recipe['image'],
-                    'cook_time': recipe['cook_time'],
-                    'servings': recipe['servings'],
-                    'calories': recipe['calories'],
-                    'protein': recipe['protein'],
-                    'fat': recipe['fat'],
-                    'carbs': recipe['carbs'],
-                    'ingredients': recipe['ingredients'],
-                    'steps': recipe['steps'],
-                    'tags': recipe['tags'],
-                    'difficulty': recipe['difficulty']
-                }).execute()
-            
-            # Add to history
-            supabase_client.table('history_items').insert({
-                'id': item['id'],
-                'user_id': user_id,
-                'recipe_id': recipe['id'],
-                'cooked_at': item.get('cooked_at'),
-                'rating': item.get('rating'),
-                'notes': item.get('notes')
-            }).execute()
-    except Exception as e:
-        print(f"Error saving history to Supabase: {e}")
-
-def supabase_save_swiped(user_id: str, swiped_ids: list):
-    """Save swiped recipes to Supabase"""
-    try:
-        # Delete existing swiped
-        supabase_client.table('swiped_recipes').delete().eq('user_id', user_id).execute()
+        # Save history
+        supabase.delete("history_items", {"user_id": user_id})
+        for item in state.get("history", []):
+            recipe = item["recipe"]
+            ensure_recipe_exists(recipe)
+            supabase.insert("history_items", {
+                "id": item["id"],
+                "user_id": user_id,
+                "recipe_id": recipe["id"],
+                "cooked_at": item.get("cooked_at"),
+                "rating": item.get("rating"),
+                "notes": item.get("notes")
+            })
         
-        # Insert new swiped
-        for recipe_id in swiped_ids:
-            supabase_client.table('swiped_recipes').insert({
-                'id': str(uuid.uuid4()),
-                'user_id': user_id,
-                'recipe_id': recipe_id,
-                'action': 'dislike'
-            }).execute()
-    except Exception as e:
-        print(f"Error saving swiped to Supabase: {e}")
-
-def supabase_save_preferences(user_id: str, preferences: dict):
-    """Save preferences to Supabase"""
-    try:
-        # Delete existing preferences
-        supabase_client.table('user_preferences').delete().eq('user_id', user_id).execute()
+        # Save swiped
+        supabase.delete("swiped_recipes", {"user_id": user_id})
+        for recipe_id in state.get("swiped_ids", []):
+            supabase.insert("swiped_recipes", {
+                "id": str(uuid.uuid4()),
+                "user_id": user_id,
+                "recipe_id": recipe_id,
+                "action": "dislike"
+            })
         
-        # Insert new preferences
-        supabase_client.table('user_preferences').insert({
-            'id': str(uuid.uuid4()),
-            'user_id': user_id,
-            'max_calories': preferences.get('max_calories', 800),
-            'max_cook_time': preferences.get('max_cook_time', 60),
-            'exclude_tags': preferences.get('exclude_tags', []),
-            'preferred_difficulty': preferences.get('preferred_difficulty', ["easy", "medium", "hard"])
-        }).execute()
+        # Save preferences
+        supabase.delete("user_preferences", {"user_id": user_id})
+        prefs = state.get("preferences", {})
+        supabase.insert("user_preferences", {
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "max_calories": prefs.get("max_calories", 800),
+            "max_cook_time": prefs.get("max_cook_time", 60),
+            "exclude_tags": prefs.get("exclude_tags", []),
+            "preferred_difficulty": prefs.get("preferred_difficulty", ["easy", "medium", "hard"])
+        })
+        
     except Exception as e:
-        print(f"Error saving preferences to Supabase: {e}")
+        print(f"Error saving to Supabase: {e}")
 
 # Unified state access
 def get_state(user_id: str) -> dict:
-    if USE_SUPABASE and supabase_client:
+    if USE_SUPABASE and supabase:
         try:
             return supabase_get_user_state(user_id)
         except Exception as e:
@@ -271,18 +347,18 @@ def get_state(user_id: str) -> dict:
     return load_user_state(user_id)
 
 def save_state(user_id: str, state: dict):
-    if USE_SUPABASE and supabase_client:
+    if USE_SUPABASE and supabase:
         try:
-            supabase_save_queue(user_id, state.get("queue", []))
-            supabase_save_history(user_id, state.get("history", []))
-            supabase_save_swiped(user_id, state.get("swiped_ids", []))
-            supabase_save_preferences(user_id, state.get("preferences", {}))
+            supabase_save_state(user_id, state)
             return
         except Exception as e:
             print(f"Supabase save error, falling back to file: {e}")
     save_user_state(user_id, state)
 
+# ============================================
 # Models
+# ============================================
+
 class Recipe(BaseModel):
     id: str
     title: str
@@ -343,211 +419,33 @@ class NewRecipe(BaseModel):
     difficulty: str
     author_id: Optional[str] = None
 
-# Sample recipes database
+# ============================================
+# Sample recipes
+# ============================================
+
 RECIPES_DB: List[Recipe] = [
-    Recipe(
-        id="1",
-        title="Паста Карбонара",
-        description="Классическая итальянская паста с беконом, яйцом и пармезаном",
-        image="🍝",
-        cook_time=25,
-        servings=2,
-        calories=520,
-        protein=22,
-        fat=24,
-        carbs=55,
-        ingredients=["Спагетти 200г", "Бекон 150г", "Яйца 3шт", "Пармезан 80г", "Чёрный перец", "Соль"],
-        steps=["Отварите пасту", "Обжарьте бекон", "Смешайте яйца с пармезаном", "Соедините всё вместе"],
-        tags=["итальянская", "паста", "быстрая"],
-        difficulty="easy"
-    ),
-    Recipe(
-        id="2",
-        title="Том Ям с креветками",
-        description="Острый тайский суп с креветками, грибами и кокосовым молоком",
-        image="🍜",
-        cook_time=35,
-        servings=4,
-        calories=280,
-        protein=18,
-        fat=12,
-        carbs=22,
-        ingredients=["Креветки 400г", "Кокосовое молоко 400мл", "Грибы 200г", "Лемонграсс", "Галангал", "Лайм", "Чили"],
-        steps=["Вскипятите бульон с лемонграссом", "Добавьте грибы", "Положите креветки", "Приправьте"],
-        tags=["тайская", "суп", "острая", "морепродукты"],
-        difficulty="medium"
-    ),
-    Recipe(
-        id="3",
-        title="Боул с курицей и авокадо",
-        description="Полезный боул с grilled курицей, авокадо, киноа и соусом тахини",
-        image="🥗",
-        cook_time=30,
-        servings=2,
-        calories=450,
-        protein=35,
-        fat=20,
-        carbs=38,
-        ingredients=["Куриная грудка 300г", "Киноа 150г", "Авокадо 1шт", "Огурец", "Помидоры черри", "Тахини"],
-        steps=["Отварите киноа", "Обжарьте курицу", "Нарежьте овощи", "Соберите боул"],
-        tags=["здоровая", "боул", "высокобелковая"],
-        difficulty="easy"
-    ),
-    Recipe(
-        id="4",
-        title="Ризотто с грибами",
-        description="Кремовое ризотто с белыми грибами и пармезаном",
-        image="🍚",
-        cook_time=45,
-        servings=3,
-        calories=480,
-        protein=14,
-        fat=22,
-        carbs=56,
-        ingredients=["Рис арборио 300г", "Белые грибы 300г", "Лук", "Белое вино", "Бульон", "Пармезан"],
-        steps=["Обжарьте грибы", "Обжарьте рис", "Добавляйте бульон", "Вмешайте пармезан"],
-        tags=["итальянская", "рис", "вегетарианская"],
-        difficulty="hard"
-    ),
-    Recipe(
-        id="5",
-        title="Тако с говядиной",
-        description="Мексиканские тако с пряной говядиной и гуакамоле",
-        image="🌮",
-        cook_time=30,
-        servings=4,
-        calories=380,
-        protein=28,
-        fat=18,
-        carbs=28,
-        ingredients=["Говяжий фарш 500г", "Тортильи 8шт", "Авокадо 2шт", "Помидоры", "Лук", "Кинза"],
-        steps=["Обжарьте фарш со специями", "Приготовьте гуакамоле", "Соберите тако"],
-        tags=["мексиканская", "мясо", "быстрая"],
-        difficulty="easy"
-    ),
-    Recipe(
-        id="6",
-        title="Лосось терияки с рисом",
-        description="Глазированный лосось в соусе терияки с жасминовым рисом",
-        image="🐟",
-        cook_time=30,
-        servings=2,
-        calories=520,
-        protein=38,
-        fat=22,
-        carbs=42,
-        ingredients=["Филе лосося 2шт", "Рис 200г", "Брокколи 300г", "Соевый соус", "Мёд", "Имбирь"],
-        steps=["Отварите рис", "Замаринуйте лосось", "Обжарьте лосось", "Подавайте с овощами"],
-        tags=["японская", "рыба", "здоровая"],
-        difficulty="medium"
-    ),
-    Recipe(
-        id="7",
-        title="Шаурма домашняя",
-        description="Сочная домашняя шаурма с маринованной курицей",
-        image="🌯",
-        cook_time=40,
-        servings=3,
-        calories=580,
-        protein=32,
-        fat=28,
-        carbs=48,
-        ingredients=["Куриное бедро 500г", "Лаваш 3шт", "Помидоры", "Огурцы", "Капуста", "Йогурт", "Чеснок"],
-        steps=["Замаринуйте курицу", "Обжарьте", "Нарежьте овощи", "Заверните в лаваш"],
-        tags=["восточная", "мясо", "быстрая"],
-        difficulty="easy"
-    ),
-    Recipe(
-        id="8",
-        title="Тирамису",
-        description="Нежный итальянский десерт с маскарпоне и кофе",
-        image="🍰",
-        cook_time=40,
-        servings=6,
-        calories=420,
-        protein=8,
-        fat=28,
-        carbs=36,
-        ingredients=["Маскарпоне 500г", "Яйца 4шт", "Савоярди 200г", "Эспрессо", "Сахар", "Какао"],
-        steps=["Сварите кофе", "Приготовьте крем", "Соберите слои", "Охладите 4 часа"],
-        tags=["десерт", "итальянская", "без выпечки"],
-        difficulty="medium"
-    ),
-    Recipe(
-        id="9",
-        title="Том Кха Гай",
-        description="Кокосовый суп с курицей по-тайски",
-        image="🥥",
-        cook_time=35,
-        servings=4,
-        calories=320,
-        protein=24,
-        fat=18,
-        carbs=16,
-        ingredients=["Куриное филе 400г", "Кокосовое молоко 600мл", "Галангал 40г", "Лемонграсс", "Грибы", "Чили", "Лайм"],
-        steps=["Вскипятите кокосовое молоко", "Добавьте курицу", "Добавьте грибы и специи", "Подавайте"],
-        tags=["тайская", "суп", "курица"],
-        difficulty="medium"
-    ),
-    Recipe(
-        id="10",
-        title="Панкейки с ягодами",
-        description="Пышные американские панкейки со свежими ягодами",
-        image="🥞",
-        cook_time=20,
-        servings=3,
-        calories=380,
-        protein=10,
-        fat=14,
-        carbs=54,
-        ingredients=["Мука 250г", "Молоко 300мл", "Яйца 2шт", "Сахар 3 ст.л.", "Разрыхлитель", "Ягоды"],
-        steps=["Смешайте сухие ингредиенты", "Добавьте жидкие", "Жарьте на сковороде", "Подавайте с ягодами"],
-        tags=["завтрак", "десерт", "быстрая"],
-        difficulty="easy"
-    ),
-    Recipe(
-        id="11",
-        title="Карри с нутом",
-        description="Ароматное индийское карри с нутом в томатном соусе",
-        image="🍛",
-        cook_time=35,
-        servings=4,
-        calories=340,
-        protein=16,
-        fat=14,
-        carbs=38,
-        ingredients=["Нут 400г", "Томаты 400г", "Кокосовое молоко 200мл", "Лук", "Чеснок", "Имбирь", "Специи"],
-        steps=["Обжарьте лук и специи", "Добавьте томаты", "Добавьте нут", "Тушите 15 минут"],
-        tags=["индийская", "веганская", "бобовые"],
-        difficulty="easy"
-    ),
-    Recipe(
-        id="12",
-        title="Стейк рибай с овощами гриль",
-        description="Идеально прожаренный стейк рибай с овощами на гриле",
-        image="🥩",
-        cook_time=25,
-        servings=2,
-        calories=650,
-        protein=48,
-        fat=42,
-        carbs=12,
-        ingredients=["Рибай стейк 2шт", "Перец болгарский 2шт", "Цукини 2шт", "Оливковое масло", "Чеснок", "Зелень"],
-        steps=["Подготовьте стейк", "Обжарьте стейк", "Приготовьте овощи на гриле", "Подавайте вместе"],
-        tags=["мясо", "гриль", "высокобелковая"],
-        difficulty="hard"
-    ),
+    Recipe(id="1", title="Паста Карбонара", description="Классическая итальянская паста с беконом, яйцом и пармезаном. Быстро, сытно и невероятно вкусно.", image="🍝", cook_time=25, servings=2, calories=520, protein=22, fat=24, carbs=55, ingredients=["Спагетти 200г", "Бекон 150г", "Яйца 3шт", "Пармезан 80г", "Чёрный перец", "Соль"], steps=["Вскипятите воду, посолите, отварите пасту до al dente", "Нарежьте бекон кубиками, обжарьте до хрустящей корочки", "Смешайте яйца с тёртым пармезаном и перцем", "Слейте пасту, оставив стакан воды", "Добавьте пасту к бекону, снимите с огня", "Влейте яичную смесь, быстро перемешайте", "Подавайте с дополнительным пармезаном"], tags=["итальянская", "паста", "быстрая"], difficulty="easy"),
+    Recipe(id="2", title="Том Ям с креветками", description="Острый тайский суп с креветками, грибами и кокосовым молоком. Ароматный и согревающий.", image="🍜", cook_time=35, servings=4, calories=280, protein=18, fat=12, carbs=22, ingredients=["Креветки 400г", "Кокосовое молоко 400мл", "Грибы 200г", "Лемонграсс 2 стебля", "Галангал 30г", "Лайм 2шт", "Перец чили 2шт", "Рыбный соус 3 ст.л.", "Кинза"], steps=["Вскипятите 1л воды с лемонграссом и галангалом", "Добавьте грибы, варите 5 минут", "Положите креветки, варите 3 минуты", "Влейте кокосовое молоко", "Добавьте рыбный соус, сок лайма и чили", "Подавайте с кинзой и рисом"], tags=["тайская", "суп", "острая", "морепродукты"], difficulty="medium"),
+    Recipe(id="3", title="Боул с курицей и авокадо", description="Полезный боул с grilled курицей, авокадо, киноа и соусом тахини. Идеальный обед.", image="🥗", cook_time=30, servings=2, calories=450, protein=35, fat=20, carbs=38, ingredients=["Куриная грудка 300г", "Киноа 150г", "Авокадо 1шт", "Огурец 1шт", "Помидоры черри 200г", "Тахини 2 ст.л.", "Лимон", "Оливковое масло"], steps=["Отварите киноа согласно инструкции", "Замаринуйте курицу в специях, обжарьте до готовности", "Нарежьте авокадо, огурец и помидоры", "Приготовьте соус: тахини + лимонный сок + вода", "Соберите боул: киноа, овощи, курица, авокадо", "Полейте соусом тахини"], tags=["здоровая", "боул", "высокобелковая"], difficulty="easy"),
+    Recipe(id="4", title="Ризотто с грибами", description="Кремовое ризотто с белыми грибами и пармезаном.", image="🍚", cook_time=45, servings=3, calories=480, protein=14, fat=22, carbs=56, ingredients=["Рис арборио 300г", "Белые грибы 300г", "Лук 1шт", "Чеснок 3 зубчика", "Белое вино 150мл", "Бульон 1л", "Пармезан 100г", "Сливочное масло 50г"], steps=["Обжарьте грибы до золотистости", "Обжарьте лук и чеснок", "Добавьте рис, обжаривайте 2 минуты", "Влейте вино", "Добавляйте бульон по половнику", "Вмешайте масло и пармезан"], tags=["итальянская", "рис", "вегетарианская"], difficulty="hard"),
+    Recipe(id="5", title="Тако с говядиной", description="Мексиканские тако с пряной говядиной и гуакамоле.", image="🌮", cook_time=30, servings=4, calories=380, protein=28, fat=18, carbs=28, ingredients=["Говяжий фарш 500г", "Тортильи 8шт", "Авокадо 2шт", "Помидоры 3шт", "Лук 1шт", "Кинза", "Лайм 2шт"], steps=["Обжарьте фарш со специями", "Приготовьте гуакамоле", "Нарежьте овощи", "Соберите тако"], tags=["мексиканская", "мясо", "быстрая"], difficulty="easy"),
+    Recipe(id="6", title="Лосось терияки", description="Глазированный лосось в соусе терияки с рисом.", image="🐟", cook_time=30, servings=2, calories=520, protein=38, fat=22, carbs=42, ingredients=["Филе лосося 2шт", "Рис 200г", "Брокколи 300г", "Соевый соус", "Мёд", "Имбирь"], steps=["Отварите рис", "Замаринуйте лосось", "Обжарьте лосось", "Подавайте с овощами"], tags=["японская", "рыба", "здоровая"], difficulty="medium"),
+    Recipe(id="7", title="Шаурма домашняя", description="Сочная домашняя шаурма с маринованной курицей.", image="🌯", cook_time=40, servings=3, calories=580, protein=32, fat=28, carbs=48, ingredients=["Куриное бедро 500г", "Лаваш 3шт", "Помидоры 2шт", "Огурцы 2шт", "Капуста 200г", "Йогурт 200г", "Чеснок"], steps=["Замаринуйте курицу", "Обжарьте курицу", "Нарежьте овощи", "Заверните в лаваш"], tags=["восточная", "мясо", "быстрая"], difficulty="easy"),
+    Recipe(id="8", title="Тирамису", description="Нежный итальянский десерт с маскарпоне и кофе.", image="🍰", cook_time=40, servings=6, calories=420, protein=8, fat=28, carbs=36, ingredients=["Маскарпоне 500г", "Яйца 4шт", "Савоярди 200г", "Эспрессо 300мл", "Сахар 100г", "Какао"], steps=["Сварите кофе", "Приготовьте крем", "Соберите слои", "Охладите 4 часа"], tags=["десерт", "итальянская", "без выпечки"], difficulty="medium"),
+    Recipe(id="9", title="Том Кха Гай", description="Кокосовый суп с курицей по-тайски.", image="🥥", cook_time=35, servings=4, calories=320, protein=24, fat=18, carbs=16, ingredients=["Куриное филе 400г", "Кокосовое молоко 600мл", "Галангал 40г", "Лемонграсс", "Грибы 200г", "Лайм 3шт"], steps=["Вскипятите кокосовое молоко", "Добавьте курицу", "Добавьте грибы и специи", "Подавайте"], tags=["тайская", "суп", "курица"], difficulty="medium"),
+    Recipe(id="10", title="Панкейки с ягодами", description="Пышные американские панкейки со свежими ягодами.", image="🥞", cook_time=20, servings=3, calories=380, protein=10, fat=14, carbs=54, ingredients=["Мука 250г", "Молоко 300мл", "Яйца 2шт", "Сахар 3 ст.л.", "Разрыхлитель", "Ягоды 200г"], steps=["Смешайте сухие ингредиенты", "Добавьте жидкие", "Жарьте на сковороде", "Подавайте с ягодами"], tags=["завтрак", "десерт", "быстрая"], difficulty="easy"),
+    Recipe(id="11", title="Карри с нутом", description="Ароматное индийское карри с нутом.", image="🍛", cook_time=35, servings=4, calories=340, protein=16, fat=14, carbs=38, ingredients=["Нут 400г", "Томаты 400г", "Кокосовое молоко 200мл", "Лук 2шт", "Специи", "Шпинат 200г"], steps=["Обжарьте лук и специи", "Добавьте томаты", "Добавьте нут", "Тушите 15 минут"], tags=["индийская", "веганская", "бобовые"], difficulty="easy"),
+    Recipe(id="12", title="Стейк рибай", description="Идеально прожаренный стейк рибай с овощами гриль.", image="🥩", cook_time=25, servings=2, calories=650, protein=48, fat=42, carbs=12, ingredients=["Рибай стейк 2шт", "Перец болгарский 2шт", "Цукини 2шт", "Оливковое масло", "Чеснок", "Зелень"], steps=["Подготовьте стейк", "Обжарьте стейк", "Приготовьте овощи", "Подавайте"], tags=["мясо", "гриль", "высокобелковая"], difficulty="hard"),
 ]
 
-# Routes
+# ============================================
+# API Routes
+# ============================================
+
 @app.get("/")
 def root():
     storage_type = "Supabase REST API" if USE_SUPABASE else "File Storage"
-    return {
-        "message": "SwypeMeal API v2.0",
-        "status": "running",
-        "storage": storage_type
-    }
+    return {"message": "SwypeMeal API v2.0", "status": "running", "storage": storage_type}
 
 @app.get("/api/recipes")
 def get_recipes(
@@ -559,11 +457,9 @@ def get_recipes(
 ):
     state = get_state(user_id)
     recipes = RECIPES_DB.copy()
-    
     recipes = [r for r in recipes if r.id not in state["swiped_ids"]]
     queue_ids = [q["recipe"]["id"] for q in state["queue"]]
     recipes = [r for r in recipes if r.id not in queue_ids]
-    
     if max_calories:
         recipes = [r for r in recipes if r.calories <= max_calories]
     if max_cook_time:
@@ -573,7 +469,6 @@ def get_recipes(
     if exclude_tags:
         tags = exclude_tags.split(",")
         recipes = [r for r in recipes if not any(t in r.tags for t in tags)]
-    
     return {"recipes": recipes, "count": len(recipes)}
 
 @app.get("/api/recipes/{recipe_id}")
@@ -591,27 +486,18 @@ def get_queue(user_id: str):
 @app.post("/api/queue/{user_id}")
 def add_to_queue(user_id: str, recipe_id: str):
     state = get_state(user_id)
-    
     recipe = None
     for r in RECIPES_DB:
         if r.id == recipe_id:
             recipe = r
             break
-    
     if not recipe:
         raise HTTPException(status_code=404, detail="Recipe not found")
-    
     if any(q["recipe"]["id"] == recipe_id for q in state["queue"]):
         raise HTTPException(status_code=400, detail="Already in queue")
-    
-    item = {
-        "id": str(uuid.uuid4()),
-        "recipe": recipe.model_dump(),
-        "added_at": datetime.now().isoformat()
-    }
+    item = {"id": str(uuid.uuid4()), "recipe": recipe.model_dump(), "added_at": datetime.now().isoformat()}
     state["queue"].append(item)
     save_state(user_id, state)
-    
     return {"message": "Added to queue", "item": item}
 
 @app.delete("/api/queue/{user_id}/{item_id}")
@@ -622,29 +508,19 @@ def remove_from_queue(user_id: str, item_id: str):
     return {"message": "Removed from queue"}
 
 @app.post("/api/cook/{user_id}")
-def mark_cooked(user_id: str, data: CookComplete):
+def mark_cooked(user_id: str,  CookComplete):
     state = get_state(user_id)
-    
     item = None
     for q in state["queue"]:
         if q["id"] == data.queue_item_id:
             item = q
             break
-    
     if not item:
         raise HTTPException(status_code=404, detail="Queue item not found")
-    
-    history_item = {
-        "id": str(uuid.uuid4()),
-        "recipe": item["recipe"],
-        "cooked_at": datetime.now().isoformat(),
-        "rating": data.rating,
-        "notes": data.notes
-    }
+    history_item = {"id": str(uuid.uuid4()), "recipe": item["recipe"], "cooked_at": datetime.now().isoformat(), "rating": data.rating, "notes": data.notes}
     state["history"].insert(0, history_item)
     state["queue"] = [q for q in state["queue"] if q["id"] != data.queue_item_id]
     save_state(user_id, state)
-    
     return {"message": "Marked as cooked", "item": history_item}
 
 @app.get("/api/history/{user_id}")
@@ -660,27 +536,19 @@ def remove_from_history(user_id: str, item_id: str):
     return {"message": "Removed from history"}
 
 @app.post("/api/swipe/{user_id}")
-def swipe(user_id: str, data: SwipeAction):
+def swipe(user_id: str,  SwipeAction):
     state = get_state(user_id)
-    
     if data.recipe_id not in state["swiped_ids"]:
         state["swiped_ids"].append(data.recipe_id)
-    
     if data.action == "like":
         recipe = None
         for r in RECIPES_DB:
             if r.id == data.recipe_id:
                 recipe = r
                 break
-        
         if recipe and not any(q["recipe"]["id"] == data.recipe_id for q in state["queue"]):
-            item = {
-                "id": str(uuid.uuid4()),
-                "recipe": recipe.model_dump(),
-                "added_at": datetime.now().isoformat()
-            }
+            item = {"id": str(uuid.uuid4()), "recipe": recipe.model_dump(), "added_at": datetime.now().isoformat()}
             state["queue"].append(item)
-    
     save_state(user_id, state)
     return {"message": f"Swiped {data.action}", "swiped_count": len(state["swiped_ids"])}
 
@@ -706,13 +574,11 @@ def reset_swipes(user_id: str):
 @app.get("/api/stats/{user_id}")
 def get_stats(user_id: str):
     state = get_state(user_id)
-    
     total_meals = len(state["history"])
     total_calories = sum(h["recipe"]["calories"] for h in state["history"])
     total_time = sum(h["recipe"]["cook_time"] for h in state["history"])
     rated = [h for h in state["history"] if h.get("rating")]
     avg_rating = sum(h["rating"] for h in rated) / len(rated) if rated else 0
-    
     return {
         "total_meals": total_meals,
         "total_calories": total_calories,
@@ -742,9 +608,9 @@ def telegram_init(user_id: str):
 
 @app.get("/api/health")
 def health_check():
-    if USE_SUPABASE and supabase_client:
+    if USE_SUPABASE and supabase:
         try:
-            supabase_client.table('recipes').select('id').limit(1).execute()
+            supabase.test_connection()
             return {"status": "healthy", "database": "connected"}
         except Exception as e:
             return {"status": "unhealthy", "database": str(e)}
