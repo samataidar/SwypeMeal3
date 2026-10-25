@@ -34,7 +34,14 @@ app.add_middleware(
 # ============================================
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-USE_DATABASE = os.getenv("USE_DATABASE", "false").lower() == "true" and DATABASE_URL is not None
+USE_DATABASE_ENV = os.getenv("USE_DATABASE", "false").lower()
+
+print(f"[DEBUG] DATABASE_URL: {'SET' if DATABASE_URL else 'NOT SET'}")
+print(f"[DEBUG] USE_DATABASE env: {USE_DATABASE_ENV}")
+
+USE_DATABASE = USE_DATABASE_ENV == "true" and DATABASE_URL is not None
+
+print(f"[DEBUG] USE_DATABASE final: {USE_DATABASE}")
 
 db_engine = None
 SessionLocal = None
@@ -49,6 +56,8 @@ if USE_DATABASE:
         if "supabase" in db_url and "?sslmode=" not in db_url:
             db_url += "?sslmode=require"
         
+        print(f"[DEBUG] Connecting to database...")
+        
         db_engine = create_engine(
             db_url,
             pool_pre_ping=True,
@@ -59,6 +68,10 @@ if USE_DATABASE:
         )
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
         
+        # Test connection
+        with db_engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        
         def get_db():
             db = SessionLocal()
             try:
@@ -66,11 +79,13 @@ if USE_DATABASE:
             finally:
                 db.close()
         
-        print(f"✓ Database connected: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'configured'}")
+        print(f"✓ Database connected successfully: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'configured'}")
     except Exception as e:
         print(f"✗ Database connection failed: {e}")
         print("  Falling back to file storage")
         USE_DATABASE = False
+else:
+    print("⚠ Database mode disabled, using file storage")
 
 # ============================================
 # Models
