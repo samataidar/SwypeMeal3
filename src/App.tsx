@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Heart, List, History as HistoryIcon, Settings as SettingsIcon, UtensilsCrossed } from 'lucide-react';
+import { Heart, List, History as HistoryIcon, Settings as SettingsIcon, UtensilsCrossed, Plus } from 'lucide-react';
 import SwipeView from './components/SwipeView';
 import CookQueue from './components/CookQueue';
 import History from './components/History';
 import Settings from './components/Settings';
+import AddRecipe from './components/AddRecipe';
 import { useStore } from './store';
 
-type Tab = 'swipe' | 'queue' | 'history' | 'settings';
+type Tab = 'swipe' | 'queue' | 'history' | 'settings' | 'add';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('swipe');
@@ -16,6 +17,7 @@ function App() {
     { id: 'swipe', icon: Heart, label: 'Свайп' },
     { id: 'queue', icon: List, label: 'Очередь', badge: store.queue.length },
     { id: 'history', icon: HistoryIcon, label: 'История', badge: store.history.length },
+    { id: 'add', icon: Plus, label: 'Добавить' },
     { id: 'settings', icon: SettingsIcon, label: 'Фильтры' },
   ];
 
@@ -54,12 +56,20 @@ function App() {
             queue={store.queue}
             onRemove={store.removeFromQueue}
             onCook={store.moveToHistory}
+            onMoveUp={store.moveQueueUp}
+            onMoveDown={store.moveQueueDown}
           />
         )}
         {activeTab === 'history' && (
           <History
             history={store.history}
             onRemove={store.removeFromHistory}
+          />
+        )}
+        {activeTab === 'add' && (
+          <AddRecipe
+            onSubmit={store.submitRecipe}
+            pendingCount={store.pendingRecipes.length}
           />
         )}
         {activeTab === 'settings' && (
@@ -80,7 +90,7 @@ function App() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl transition-all ${
+                className={`relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all ${
                   isActive
                     ? 'text-orange-600 bg-orange-50'
                     : 'text-gray-400 hover:text-gray-600'

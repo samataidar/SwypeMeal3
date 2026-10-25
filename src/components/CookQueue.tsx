@@ -1,21 +1,24 @@
 import { useState } from 'react';
 import { QueueItem } from '../types';
-import { Clock, Flame, Check, Trash2, ChefHat, Star } from 'lucide-react';
+import { Clock, Flame, Check, Trash2, ChefHat, Star, ChevronUp, ChevronDown } from 'lucide-react';
 
 interface CookQueueProps {
   queue: QueueItem[];
   onRemove: (id: string) => void;
   onCook: (id: string, rating?: number, notes?: string) => void;
+  onMoveUp: (id: string) => void;
+  onMoveDown: (id: string) => void;
 }
 
-export default function CookQueue({ queue, onRemove, onCook }: CookQueueProps) {
+export default function CookQueue({ queue, onRemove, onCook, onMoveUp, onMoveDown }: CookQueueProps) {
   const [cookingId, setCookingId] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
   const [notes, setNotes] = useState('');
 
   const handleCookComplete = () => {
     if (cookingId) {
-      onCook(cookingId, rating, notes);
+      // rating === 0 means optional rating skipped
+      onCook(cookingId, rating || undefined, notes || undefined);
       setCookingId(null);
       setRating(0);
       setNotes('');
@@ -85,16 +88,35 @@ export default function CookQueue({ queue, onRemove, onCook }: CookQueueProps) {
                 </div>
               </div>
               <div className="flex flex-col gap-1">
+                {/* Move up/down buttons */}
+                <button
+                  onClick={() => onMoveUp(item.id)}
+                  disabled={index === 0}
+                  className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Переместить вверх"
+                >
+                  <ChevronUp size={16} />
+                </button>
+                <button
+                  onClick={() => onMoveDown(item.id)}
+                  disabled={index === queue.length - 1}
+                  className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Переместить вниз"
+                >
+                  <ChevronDown size={16} />
+                </button>
+                {/* Cook button */}
                 <button
                   onClick={() => setCookingId(item.id)}
-                  className="p-2 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-colors"
+                  className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
                   title="Приготовлено"
                 >
                   <ChefHat size={16} />
                 </button>
+                {/* Remove button */}
                 <button
                   onClick={() => onRemove(item.id)}
-                  className="p-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors"
+                  className="p-1.5 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors"
                   title="Удалить"
                 >
                   <Trash2 size={16} />
@@ -123,12 +145,14 @@ export default function CookQueue({ queue, onRemove, onCook }: CookQueueProps) {
 
             {/* Rating */}
             <div className="mb-4">
-              <label className="text-sm font-medium text-gray-700 mb-2 block">Оценка</label>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Оценка <span className="text-gray-400 font-normal">(опционально)</span>
+              </label>
               <div className="flex justify-center gap-2">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
                     key={star}
-                    onClick={() => setRating(star)}
+                    onClick={() => setRating(star === rating ? 0 : star)}
                     className="transition-transform hover:scale-110"
                   >
                     <Star
@@ -142,7 +166,9 @@ export default function CookQueue({ queue, onRemove, onCook }: CookQueueProps) {
 
             {/* Notes */}
             <div className="mb-4">
-              <label className="text-sm font-medium text-gray-700 mb-2 block">Заметки</label>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Заметки <span className="text-gray-400 font-normal">(опционально)</span>
+              </label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}

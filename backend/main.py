@@ -255,9 +255,10 @@ def get_recipes(
     difficulty: Optional[str] = None,
     exclude_tags: Optional[str] = None,
 ):
-    """Получить список рецептов с фильтрацией"""
+    """Получить список рецептов с фильтрацией (включая одобренные пользовательские)"""
     state = load_user_state(user_id)
-    recipes = RECIPES_DB.copy()
+    custom = load_custom_recipes()
+    recipes = RECIPES_DB + custom
     
     # Filter out already swiped
     recipes = [r for r in recipes if r.id not in state.swiped_ids]
@@ -440,6 +441,128 @@ def get_stats(user_id: str):
     }
 
 # ============================================
+# Custom Recipes (User-submitted with moderation)
+# ============================================
+
+CUSTOM_RECIPES_FILE = os.path.join(DATA_DIR, "custom_recipes.json")
+PENDING_RECIPES_FILE = os.path.join(DATA_DIR, "pending_recipes.json")
+
+def load_custom_recipes() -> List[Recipe]:
+    if os.path.exists(CUSTOM_RECIPES_FILE):
+        with open(CUSTOM_RECIPES_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return [Recipe(**r) for r in data]
+    return []
+
+def save_custom_recipes(recipes: List[Recipe]):
+    with open(CUSTOM_RECIPES_FILE, "w", encoding="utf-8") as f:
+        json.dump([r.model_dump() for r in recipes], f, ensure_ascii=False, indent=2)
+
+def load_pending_recipes() -> List[Recipe]:
+    if os.path.exists(PENDING_RECIPES_FILE):
+        with open(PENDING_RECIPES_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return [Recipe(**r) for r in data]
+    return []
+
+def save_pending_recipes(recipes: List[Recipe]):
+    with open(PENDING_RECIPES_FILE, "w", encoding="utf-8") as f:
+        json.dump([r.model_dump() for r in recipes], f, ensure_ascii=False, indent=2)
+
+class NewRecipe(BaseModel):
+    title: str
+    description: str
+    image: str
+    cook_time: int
+    servings: int
+    calories: int
+    protein: float
+    fat: float
+    carbs: float
+    ingredients: List[str]
+    steps: List[str]
+    tags: List[str]
+    difficulty: str
+    author_id: Optional[str] = None
+
+@app.post("/api/recipes/submit")
+def submit_recipe(new_recipe: NewRecipe):
+    """Отправить новый рецепт на модерацию"""
+    pending = load_pending_recipes()
+    
+    recipe = Recipe(
+        id=f"pending_{uuid.uuid4().hex[:8]}",
+        title=new_recipe.title,
+        description=new_recipe.description,
+        image=new_recipe.image,
+        cook_time=new_recipe.cook_time,
+        servings=new_recipe.servings,
+        calories=new_recipe.calories,
+        protein=new_recipe.protein,
+        fat=new_recipe.fat,
+        carbs=new_recipe.carbs,
+        ingredients=new_recipe.ingredients,
+        steps=new_recipe.steps,
+        tags=new_recipe.tags,
+        difficulty=new_recipe.difficulty
+    )
+    
+    pending.append(recipe)
+    save_pending_recipes(pending)
+    
+    return {"message": "Recipe submitted for moderation", "recipe_id": recipe.id}
+
+@app.get("/api/recipes/pending")
+def get_pending_recipes():
+    """Получить список рецептов на модерации (для модераторов)"""
+    pending = load_pending_recipes()
+    return {"recipes": pending, "count": len(pending)}
+
+@app.post("/api/recipes/approve/{recipe_id}")
+def approve_recipe(recipe_id: str):
+    """Одобрить рецепт (модерация)"""
+    pending = load_pending_recipes()
+    custom = load_custom_recipes()
+    
+    recipe = None
+    for r in pending:
+        if r.id == recipe_id:
+            recipe = r
+            break
+    
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found in pending")
+    
+    # Move to custom recipes with clean ID
+    approved_recipe = Recipe(
+        id=f"custom_{uuid.uuid4().hex[:8]}",
+        **recipe.model_dump(exclude={"id"})
+    )
+    
+    custom.append(approved_recipe)
+    save_custom_recipes(custom)
+    
+    # Remove from pending
+    pending = [r for r in pending if r.id != recipe_id]
+    save_pending_recipes(pending)
+    
+    return {"message": "Recipe approved", "recipe": approved_recipe}
+
+@app.delete("/api/recipes/pending/{recipe_id}")
+def reject_recipe(recipe_id: str):
+    """Отклонить рецепт (модерация)"""
+    pending = load_pending_recipes()
+    pending = [r for r in pending if r.id != recipe_id]
+    save_pending_recipes(pending)
+    return {"message": "Recipe rejected"}
+
+@app.get("/api/recipes/custom")
+def get_custom_recipes():
+    """Получить одобренные пользовательские рецепты"""
+    custom = load_custom_recipes()
+    return {"recipes": custom, "count": len(custom)}
+
+# ============================================
 # Telegram Mini App Integration
 # ============================================
 
@@ -447,11 +570,14 @@ def get_stats(user_id: str):
 def telegram_init(user_id: str):
     """Инициализация для Telegram Mini App"""
     state = load_user_state(user_id)
+    custom = load_custom_recipes()
+    all_recipes = RECIPES_DB + custom
+    
     return {
         "user_id": user_id,
         "queue_count": len(state.queue),
         "history_count": len(state.history),
-        "available_recipes": len([r for r in RECIPES_DB if r.id not in state.swiped_ids])
+        "available_recipes": len([r for r in all_recipes if r.id not in state.swiped_ids])
     }
 
 
