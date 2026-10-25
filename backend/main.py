@@ -56,7 +56,12 @@ if USE_DATABASE:
         if "supabase" in db_url and "?sslmode=" not in db_url:
             db_url += "?sslmode=require"
         
+        # Ensure we're using psycopg2 driver
+        if db_url.startswith("postgresql://") and "+psycopg2" not in db_url:
+            db_url = db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+        
         print(f"[DEBUG] Connecting to database...")
+        print(f"[DEBUG] Database URL: {db_url.split('@')[0]}@***")
         
         db_engine = create_engine(
             db_url,
@@ -70,7 +75,8 @@ if USE_DATABASE:
         
         # Test connection
         with db_engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
+            result = conn.execute(text("SELECT 1"))
+            result.fetchone()
         
         def get_db():
             db = SessionLocal()
@@ -82,6 +88,9 @@ if USE_DATABASE:
         print(f"✓ Database connected successfully: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'configured'}")
     except Exception as e:
         print(f"✗ Database connection failed: {e}")
+        print(f"  Error type: {type(e).__name__}")
+        import traceback
+        traceback.print_exc()
         print("  Falling back to file storage")
         USE_DATABASE = False
 else:
