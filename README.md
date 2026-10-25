@@ -2,125 +2,171 @@
 
 > Решает проблему «что приготовить?» за 1–2 минуты вместо 15–30 минут листания рецептов.
 
-## 🎯 Ключевые возможности
+## 🎯 Что реализовано
 
-### Основные функции
+### 10 ключевых требований
 
-1. **FIFO очередь по умолчанию** — новые рецепты добавляются в конец очереди, готовим из начала
-2. **Ручное управление порядком** — кнопки вверх/вниз для гибкости (не нарушает FIFO)
-3. **Запрет дубликатов** — один рецепт = одна запись в очереди
-4. **Умная фильтрация в свайпе** — рецепты из очереди не показываются повторно
-5. **Без повторов в сессии** — показанные рецепты не повторяются до сброса
-6. **Автоматическая нумерация** — удаление из очереди пересчитывает позиции без пропусков
-7. **Атомарная готовка** — приготовление = удаление из очереди + добавление в историю (транзакция)
-8. **Опциональная оценка** — можно пропустить рейтинг и заметки
-9. **Локальное хранение** — гость может свайпать, данные в localStorage (без синхронизации)
-10. **Добавление рецептов** — пользователи могут создавать рецепты, публикация после модерации
+✅ **1. FIFO очередь** — новые рецепты добавляются в конец, готовим из начала  
+✅ **2. Ручное управление** — кнопки ↑/↓ для изменения порядка  
+✅ **3. Защита от дубликатов** — один рецепт = одна запись в очереди  
+✅ **4. Умная фильтрация** — рецепты из очереди не показываются в свайпе  
+✅ **5. Без повторов** — показанные рецепты не повторяются до сброса  
+✅ **6. Автоматическая нумерация** — удаление пересчитывает позиции  
+✅ **7. Атомарная готовка** — приготовление = удаление из очереди + добавление в историю  
+✅ **8. Опциональная оценка** — можно пропустить рейтинг и заметки  
+✅ **9. Локальное хранение** — данные в localStorage (без синхронизации по умолчанию)  
+✅ **10. Добавление рецептов** — публикация после модерации
 
 ### Дополнительные фичи
 
-- **Свайп-механика** — выбирайте рецепты свайпом как в Tinder
-- **КБЖУ** — калории, белки, жиры, углеводы для каждого блюда
-- **Фильтры** — настройте предпочтения по калориям, времени, сложности и категориям
-- **История** — отслеживайте что готовили, с оценками и заметками
-- **Статистика** — общие калории, время готовки, средний рейтинг
-- **Telegram Mini App** — может работать как встроенное приложение в Telegram
+- 🔄 **Синхронизация с backend** — опциональная, включается в настройках
+- 📱 **Telegram Mini App** — готов к интеграции
+- 🎨 **Свайп-механика** — как в Tinder
+- 📊 **КБЖУ** — калории, белки, жиры, углеводы
+- 🎛️ **Фильтры** — по калориям, времени, сложности, категориям
+- 📈 **Статистика** — общие калории, время, средний рейтинг
+- 🗄️ **PostgreSQL** — поддержка production БД
+
+## 🌐 Деплой
+
+### Frontend
+**URL:** https://swype-meal3.vercel.app/  
+**Платформа:** Vercel
+
+### Backend
+**URL:** https://swypemeal.onrender.com/  
+**Платформа:** Render  
+**API Docs:** https://swypemeal.onrender.com/docs
+
+### База данных
+
+#### Текущий режим: File Storage
+- Данные хранятся в JSON файлах
+- Работает из коробки
+- Не требует настройки
+
+#### Production режим: PostgreSQL
+Для включения PostgreSQL:
+
+1. Создайте БД на Render:
+   - **New +** → **PostgreSQL**
+   - Name: `swypemeal-db`
+
+2. Добавьте переменные окружения в backend:
+   ```
+   DATABASE_URL=postgresql://user:pass@host/db
+   USE_DATABASE=true
+   ```
+
+3. Перезапустите backend
+
+**Подробная инструкция:** [DATABASE.md](DATABASE.md)
 
 ## 🚀 Быстрый старт
 
-### Frontend
-
+### Frontend (локально)
 ```bash
 npm install
 npm run dev
 ```
+Откройте: http://localhost:5173
 
-Приложение будет доступно по адресу: http://localhost:5173
-
-### Backend (Python)
-
+### Backend (локально)
 ```bash
 cd backend
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
-
-API документация: http://localhost:8000/docs
+API Docs: http://localhost:8000/docs
 
 ## 📱 Telegram Mini App
 
-Для работы как Telegram Mini App:
-
-1. В `index.html` уже подключён `telegram-web-app.js`
-2. Создайте бота через [@BotFather](https://t.me/BotFather)
-3. Настройте Web App URL в боте
-4. Frontend автоматически определит окружение Telegram
-
-**Важно:** Для Telegram нужен HTTPS и свой домен.
-
-## 🏗️ Структура проекта
-
-```
-├── src/
-│   ├── App.tsx              # Главный компонент с навигацией
-│   ├── types.ts             # TypeScript типы
-│   ├── data.ts              # База рецептов (mock)
-│   ├── store.ts             # Управление состоянием (localStorage)
-│   ├── components/
-│   │   ├── SwipeView.tsx    # Свайп-механика выбора рецептов
-│   │   ├── CookQueue.tsx    # Очередь готовки (FIFO + ручное управление)
-│   │   ├── History.tsx      # История приготовленных блюд
-│   │   ├── AddRecipe.tsx    # Форма добавления нового рецепта
-│   │   └── Settings.tsx     # Настройки фильтров
-│   └── index.css            # Стили
-├── backend/
-│   ├── main.py              # FastAPI сервер
-│   ├── requirements.txt     # Python зависимости
-│   └── README.md            # Документация API
-├── HOSTING.md               # Инструкция по хостингу
-└── index.html               # HTML entry point
-```
+1. Создайте бота через [@BotFather](https://t.me/BotFather)
+2. Настройте Web App URL:
+   ```
+   /setmenubutton → @your_bot → Menu → https://swype-meal3.vercel.app
+   ```
+3. Готово!
 
 ## 📊 API Endpoints
 
-### Рецепты
 | Метод | Путь | Описание |
 |-------|------|----------|
 | GET | `/api/recipes` | Рецепты с фильтрацией |
-| GET | `/api/recipes/{id}` | Детали рецепта |
-| POST | `/api/recipes/submit` | Отправить рецепт на модерацию |
-| GET | `/api/recipes/pending` | Рецепты на модерации |
-| POST | `/api/recipes/approve/{id}` | Одобрить рецепт |
-| DELETE | `/api/recipes/pending/{id}` | Отклонить рецепт |
-| GET | `/api/recipes/custom` | Одобренные пользовательские рецепты |
-
-### Очередь
-| Метод | Путь | Описание |
-|-------|------|----------|
-| GET | `/api/queue/{user_id}` | Очередь готовки |
-| POST | `/api/queue/{user_id}` | Добавить в очередь (FIFO) |
-| DELETE | `/api/queue/{user_id}/{item_id}` | Удалить из очереди |
-
-### Готовка и история
-| Метод | Путь | Описание |
-|-------|------|----------|
-| POST | `/api/cook/{user_id}` | Отметить приготовленным (атомарно) |
-| GET | `/api/history/{user_id}` | История готовки |
-| DELETE | `/api/history/{user_id}/{item_id}` | Удалить из истории |
-
-### Свайпы и настройки
-| Метод | Путь | Описание |
-|-------|------|----------|
-| POST | `/api/swipe/{user_id}` | Записать свайп (like/dislike) |
-| GET | `/api/preferences/{user_id}` | Настройки |
-| PUT | `/api/preferences/{user_id}` | Обновить настройки |
-| POST | `/api/reset/{user_id}` | Сбросить свайпы |
+| POST | `/api/swipe/{user_id}` | Свайп (like/dislike) |
+| GET/POST/DELETE | `/api/queue/{user_id}` | Очередь готовки |
+| POST | `/api/cook/{user_id}` | Отметить приготовленным |
+| GET/DELETE | `/api/history/{user_id}` | История |
+| GET/PUT | `/api/preferences/{user_id}` | Настройки |
 | GET | `/api/stats/{user_id}` | Статистика |
+| POST | `/api/recipes/submit` | Отправить рецепт на модерацию |
 
-### Telegram
-| Метод | Путь | Описание |
-|-------|------|----------|
-| GET | `/api/telegram/init` | Инициализация Telegram Mini App |
+**Полная документация:** https://swypemeal.onrender.com/docs
+
+## 🏗️ Архитектура
+
+```
+┌─────────────────┐
+│   Frontend      │
+│   (Vercel)      │
+│                 │
+│  - React 18     │
+│  - TypeScript   │
+│  - Tailwind     │
+│  - localStorage │
+└────────┬────────┘
+         │
+         │ API calls (опционально)
+         │
+┌────────▼────────┐
+│   Backend       │
+│   (Render)      │
+│                 │
+│  - FastAPI      │
+│  - Python 3.12  │
+│  - File/PostgreSQL│
+└────────┬────────┘
+         │
+         │ (если USE_DATABASE=true)
+         │
+┌────────▼────────┐
+│   PostgreSQL    │
+│   (Render)      │
+│                 │
+│  - SQLAlchemy   │
+│  - ACID         │
+│  - Backups      │
+└─────────────────┘
+```
+
+## 📁 Структура проекта
+
+```
+swypemeal/
+├── src/
+│   ├── App.tsx              # Главный компонент
+│   ├── api.ts               # API клиент для backend
+│   ├── store.ts             # State management + синхронизация
+│   ├── types.ts             # TypeScript типы
+│   ├── data.ts              # База рецептов (mock)
+│   └── components/
+│       ├── SwipeView.tsx    # Свайп-механика
+│       ├── CookQueue.tsx    # Очередь готовки (FIFO)
+│       ├── History.tsx      # История приготовленных
+│       ├── AddRecipe.tsx    # Форма добавления рецепта
+│       └── Settings.tsx     # Настройки + синхронизация
+├── backend/
+│   ├── main.py              # FastAPI сервер (file storage)
+│   ├── main_v2.py           # FastAPI сервер (с поддержкой БД)
+│   ├── database.py          # SQLAlchemy конфигурация
+│   ├── models.py            # SQLAlchemy модели
+│   ├── crud.py              # CRUD операции
+│   └── requirements.txt     # Python зависимости
+├── DATABASE.md              # Документация по БД
+├── DEPLOY_RENDER.md         # Инструкция по деплою на Render
+├── HOSTING.md               # Общая инструкция по хостингу
+└── README.md                # Этот файл
+```
 
 ## 🎨 Технологии
 
@@ -132,136 +178,40 @@ API документация: http://localhost:8000/docs
 - **CSS Animations** — плавные переходы
 
 ### Backend
-- **Python 3.8+**
+- **Python 3.12**
 - **FastAPI** — REST API
-- **Pydantic** — валидация данных
-- **File-based storage** (JSON) — легко заменить на PostgreSQL
+- **Pydantic** — валидация
+- **SQLAlchemy** — ORM (для PostgreSQL)
+- **File storage** — по умолчанию
 
-## 📖 Детальное описание функций
+## 🔧 Настройка синхронизации
 
-### 1. FIFO очередь
+### Режим 1: Только localStorage (по умолчанию)
+- Данные сохраняются в браузере
+- Работает офлайн
+- Нет синхронизации между устройствами
 
-```typescript
-// Новые рецепты добавляются в конец
-addToQueue(recipe) {
-  queue.push(recipe); // FIFO
-}
-```
+### Режим 2: С синхронизацией
+1. Откройте **Настройки** → **Синхронизация**
+2. Включите переключатель
+3. Данные будут синхронизироваться с backend
+4. Работает на всех устройствах
 
-### 2. Ручное управление порядком
+**Индикатор статуса:**
+- 🟢 **Онлайн** — синхронизация активна
+- 🟡 **Оффлайн** — backend недоступен
+- ⚫ **Локально** — синхронизация отключена
 
-```typescript
-// Кнопки вверх/вниз в CookQueue
-moveUp(itemId) {
-  // Меняем местами с предыдущим элементом
-}
-```
+## 📈 Roadmap
 
-### 3. Защита от дубликатов
-
-```typescript
-addToQueue(recipe) {
-  if (queue.find(item => item.recipe.id === recipe.id)) {
-    return; // Уже в очереди
-  }
-  queue.push(recipe);
-}
-```
-
-### 4. Фильтрация в свайпе
-
-```typescript
-availableRecipes = allRecipes.filter(recipe => 
-  !queue.find(q => q.recipe.id === recipe.id) // Не в очереди
-);
-```
-
-### 5. Без повторов в сессии
-
-```typescript
-availableRecipes = allRecipes.filter(recipe => 
-  !swipedIds.includes(recipe.id) // Не показан
-);
-```
-
-### 6. Автоматическая нумерация
-
-```typescript
-// При удалении из очереди позиции пересчитываются
-removeFromQueue(id) {
-  queue = queue.filter(item => item.id !== id);
-  // #1, #2, #3 автоматически обновляются
-}
-```
-
-### 7. Атомарная готовка
-
-```typescript
-moveToHistory(queueItemId) {
-  const item = queue.find(q => q.id === queueItemId);
-  history.unshift({ ...item, cookedAt: now });
-  queue = queue.filter(q => q.id !== queueItemId);
-  // Обе операции в одной транзакции
-}
-```
-
-### 8. Опциональная оценка
-
-```typescript
-// Rating и notes могут быть undefined
-moveToHistory(id, rating?, notes?)
-```
-
-### 9. Локальное хранение
-
-```typescript
-// Данные в localStorage
-localStorage.setItem('swypemeal_queue', JSON.stringify(queue));
-// Нет синхронизации между устройствами
-```
-
-### 10. Модерация рецептов
-
-```typescript
-// Пользователь отправляет рецепт
-submitRecipe(recipe) → pending_recipes
-
-// Модератор одобряет
-approveRecipe(id) → custom_recipes (появляется в общем каталоге)
-```
-
-## 🌐 Хостинг
-
-Подробная инструкция по деплою: **[HOSTING.md](HOSTING.md)**
-
-### Быстрый старт:
-
-**Frontend (Vercel):**
-```bash
-npm run build
-# Загрузите dist/ на vercel.com
-```
-
-**Backend (Railway):**
-```bash
-cd backend
-railway up
-```
-
-**Telegram Mini App:**
-1. Создайте бота через @BotFather
-2. Укажите Web App URL
-3. Готово!
-
-## 📝 Roadmap
-
-- [ ] Аутентификация пользователей
-- [ ] Синхронизация между устройствами
+- [ ] Аутентификация пользователей (JWT)
 - [ ] Социальные функции (делиться рецептами)
 - [ ] Интеграция с доставкой продуктов
 - [ ] AI-рекомендации на основе истории
-- [ ] Мультиязычность
+- [ ] Мультиязычность (i18n)
 - [ ] PWA (Progressive Web App)
+- [ ] Push-уведомления
+- [ ] Экспорт/импорт рецептов
 
 ## 🤝 Contributing
 
@@ -278,3 +228,11 @@ MIT
 ---
 
 **Создано с ❤️ для тех, кто устал думать "что приготовить"**
+
+### Полезные ссылки
+
+- **Frontend:** https://swype-meal3.vercel.app/
+- **Backend:** https://swypemeal.onrender.com/
+- **API Docs:** https://swypemeal.onrender.com/docs
+- **Документация БД:** [DATABASE.md](DATABASE.md)
+- **Инструкция по деплою:** [DEPLOY_RENDER.md](DEPLOY_RENDER.md)
