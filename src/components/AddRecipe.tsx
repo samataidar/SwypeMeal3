@@ -3,7 +3,7 @@ import { Recipe } from '../types';
 import { Plus, Send, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface AddRecipeProps {
-  onSubmit: (recipe: Omit<Recipe, 'id'>) => Recipe;
+  onSubmit: (recipe: Omit<Recipe, 'id'>) => Recipe | Promise<Recipe>;
   pendingCount: number;
 }
 

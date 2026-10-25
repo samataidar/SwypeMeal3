@@ -1,9 +1,14 @@
 import { UserPreferences } from '../types';
-import { Sliders, Clock, Flame, X } from 'lucide-react';
+import { Sliders, Clock, Flame, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 
 interface SettingsProps {
   preferences: UserPreferences;
   onChange: (prefs: UserPreferences) => void;
+  syncEnabled: boolean;
+  onToggleSync: () => void;
+  backendAvailable: boolean | null;
+  lastSync: string | null;
+  onManualSync: () => void;
 }
 
 const allTags = ['итальянская', 'тайская', 'мексиканская', 'индийская', 'японская', 'восточная', 'здоровая', 'мясо', 'рыба', 'веганская', 'вегетарианская', 'десерт', 'суп', 'завтрак', 'быстрая', 'паста', 'морепродукты', 'острая', 'высокобелковая', 'бобовые', 'гриль', 'без выпечки', 'рис', 'боул', 'курица'];
@@ -14,7 +19,15 @@ const difficulties = [
   { value: 'hard' as const, label: 'Сложно', emoji: '🔴' },
 ];
 
-export default function Settings({ preferences, onChange }: SettingsProps) {
+export default function Settings({ 
+  preferences, 
+  onChange,
+  syncEnabled,
+  onToggleSync,
+  backendAvailable,
+  lastSync,
+  onManualSync,
+}: SettingsProps) {
   const toggleTag = (tag: string) => {
     const newExclude = preferences.excludeTags.includes(tag)
       ? preferences.excludeTags.filter((t) => t !== tag)
@@ -29,11 +42,80 @@ export default function Settings({ preferences, onChange }: SettingsProps) {
     onChange({ ...preferences, preferredDifficulty: newDiff });
   };
 
+  const formatLastSync = (dateStr: string | null) => {
+    if (!dateStr) return 'Никогда';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return 'Только что';
+    if (diffMins < 60) return `${diffMins} мин назад`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours} ч назад`;
+    return date.toLocaleDateString('ru-RU');
+  };
+
   return (
     <div className="px-4 py-4 h-full overflow-y-auto pb-24">
       <div className="flex items-center gap-2 mb-6">
         <Sliders size={20} className="text-orange-500" />
-        <h2 className="text-xl font-bold text-gray-900">Настройки фильтров</h2>
+        <h2 className="text-xl font-bold text-gray-900">Настройки</h2>
+      </div>
+
+      {/* Sync Settings */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            {syncEnabled && backendAvailable ? (
+              <Wifi size={16} className="text-green-500" />
+            ) : (
+              <WifiOff size={16} className="text-gray-400" />
+            )}
+            <span className="font-medium text-gray-800">Синхронизация</span>
+          </div>
+          <button
+            onClick={onToggleSync}
+            className={`relative w-12 h-6 rounded-full transition-colors ${
+              syncEnabled ? 'bg-orange-500' : 'bg-gray-300'
+            }`}
+          >
+            <div
+              className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                syncEnabled ? 'translate-x-6' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
+        </div>
+        
+        <div className="text-xs text-gray-500 mb-3">
+          {syncEnabled ? (
+            <>
+              {backendAvailable ? (
+                <span className="text-green-600">✓ Подключено к серверу</span>
+              ) : (
+                <span className="text-amber-600">⚠ Сервер недоступен</span>
+              )}
+            </>
+          ) : (
+            <span>Данные сохраняются только в этом браузере</span>
+          )}
+        </div>
+
+        {syncEnabled && (
+          <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+            <div className="text-xs text-gray-500">
+              Последняя синхронизация: {formatLastSync(lastSync)}
+            </div>
+            <button
+              onClick={onManualSync}
+              className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 transition-colors"
+            >
+              <RefreshCw size={12} />
+              Обновить
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Max calories */}

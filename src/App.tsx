@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Heart, List, History as HistoryIcon, Settings as SettingsIcon, UtensilsCrossed, Plus } from 'lucide-react';
+import { Heart, List, History as HistoryIcon, Settings as SettingsIcon, UtensilsCrossed, Plus, Wifi, WifiOff, RefreshCw, Loader2 } from 'lucide-react';
 import SwipeView from './components/SwipeView';
 import CookQueue from './components/CookQueue';
 import History from './components/History';
@@ -21,6 +21,54 @@ function App() {
     { id: 'settings', icon: SettingsIcon, label: 'Фильтры' },
   ];
 
+  const SyncIndicator = () => {
+    if (!store.syncEnabled) {
+      return (
+        <button
+          onClick={store.toggleSync}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 text-gray-500 text-xs hover:bg-gray-200 transition-colors"
+          title="Синхронизация отключена. Нажмите для включения."
+        >
+          <WifiOff size={12} />
+          <span className="hidden sm:inline">Локально</span>
+        </button>
+      );
+    }
+
+    if (store.syncStatus === 'syncing') {
+      return (
+        <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 text-blue-600 text-xs">
+          <Loader2 size={12} className="animate-spin" />
+          <span className="hidden sm:inline">Синхронизация...</span>
+        </div>
+      );
+    }
+
+    if (store.syncStatus === 'error' || store.backendAvailable === false) {
+      return (
+        <button
+          onClick={store.manualSync}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 text-amber-600 text-xs hover:bg-amber-100 transition-colors"
+          title="Ошибка синхронизации. Нажмите для повтора."
+        >
+          <WifiOff size={12} />
+          <span className="hidden sm:inline">Оффлайн</span>
+        </button>
+      );
+    }
+
+    return (
+      <button
+        onClick={store.manualSync}
+        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-green-50 text-green-600 text-xs hover:bg-green-100 transition-colors"
+        title={`Синхронизировано. Нажмите для обновления.`}
+      >
+        <Wifi size={12} />
+        <span className="hidden sm:inline">Онлайн</span>
+      </button>
+    );
+  };
+
   return (
     <div className="h-screen flex flex-col bg-gray-50 max-w-lg mx-auto relative overflow-hidden">
       {/* Header */}
@@ -31,8 +79,11 @@ function App() {
           </div>
           <h1 className="text-lg font-bold text-gray-900">SwypeMeal</h1>
         </div>
-        <div className="text-xs text-gray-400">
-          {store.availableRecipes.length} рецептов
+        <div className="flex items-center gap-2">
+          <SyncIndicator />
+          <div className="text-xs text-gray-400">
+            {store.availableRecipes.length} рецептов
+          </div>
         </div>
       </header>
 
@@ -69,13 +120,18 @@ function App() {
         {activeTab === 'add' && (
           <AddRecipe
             onSubmit={store.submitRecipe}
-            pendingCount={store.pendingRecipes.length}
+            pendingCount={0}
           />
         )}
         {activeTab === 'settings' && (
           <Settings
             preferences={store.preferences}
             onChange={store.setPreferences}
+            syncEnabled={store.syncEnabled}
+            onToggleSync={store.toggleSync}
+            backendAvailable={store.backendAvailable}
+            lastSync={store.lastSync}
+            onManualSync={store.manualSync}
           />
         )}
       </main>
