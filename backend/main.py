@@ -56,9 +56,9 @@ if USE_DATABASE:
         if "supabase" in db_url and "?sslmode=" not in db_url:
             db_url += "?sslmode=require"
         
-        # Ensure we're using psycopg2 driver
-        if db_url.startswith("postgresql://") and "+psycopg2" not in db_url:
-            db_url = db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+        # Use psycopg (v3) driver - better IPv6/network handling
+        if db_url.startswith("postgresql://") and "+psycopg" not in db_url:
+            db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
         
         print(f"[DEBUG] Connecting to database...")
         print(f"[DEBUG] Database URL: {db_url.split('@')[0]}@***")
