@@ -202,43 +202,61 @@ def ensure_recipe_exists(recipe: dict):
     except Exception as e:
         print(f"Warning: Could not ensure recipe exists: {e}")
 
-def supabase_get_user_state(user_id: str) -> dict:
-    """Load user state from Supabase"""
+def get_recipe_by_id(recipe_id: str) -> Optional[dict]:
+    """Get recipe from in-memory DB or Supabase"""
+    # Check in-memory recipes first
+    for r in RECIPES_DB:
+        if r.id == recipe_id:
+            return r.model_dump()
+    
+    # Then check Supabase
     try:
-        # Get queue with recipe data
+        result = supabase.select("recipes", filters={"id": recipe_id})
+        if result:
+            return result[0]
+    except Exception:
+        pass
+    return None
+
+def supabase_get_user_state(user_id: str) -> dict:
+    """Load user state from Supabase (without JOINs)"""
+    try:
+        # Get queue items (without embedded recipes)
         queue_data = supabase.select(
             "queue_items",
-            query="*, recipes(*)",
             filters={"user_id": user_id},
             order="position.asc"
         )
         queue = []
         for item in queue_data:
-            recipe = item.get("recipes", {})
-            queue.append({
-                "id": item["id"],
-                "recipe": recipe,
-                "added_at": item.get("added_at"),
-                "planned_date": item.get("planned_date")
-            })
+            recipe_id = item.get("recipe_id")
+            recipe = get_recipe_by_id(recipe_id)
+            if recipe:
+                queue.append({
+                    "id": item["id"],
+                    "recipe": recipe,
+                    "added_at": item.get("added_at"),
+                    "planned_date": item.get("planned_date")
+                })
         
-        # Get history with recipe data
+        # Get history items (without embedded recipes)
         history_data = supabase.select(
             "history_items",
-            query="*, recipes(*)",
             filters={"user_id": user_id},
             order="cooked_at.desc"
         )
         history = []
         for item in history_data:
-            recipe = item.get("recipes", {})
-            history.append({
-                "id": item["id"],
-                "recipe": recipe,
-                "cooked_at": item.get("cooked_at"),
-                "rating": item.get("rating"),
-                "notes": item.get("notes")
-            })
+            recipe_id = item.get("recipe_id")
+            recipe = get_recipe_by_id(recipe_id)
+            if recipe:
+                history.append({
+                    "id": item["id"],
+                    "recipe": recipe,
+                    "cooked_at": item.get("cooked_at"),
+                    "rating": item.get("rating"),
+                    "notes": item.get("notes")
+                })
         
         # Get swiped recipe ids
         swiped_data = supabase.select(
@@ -471,6 +489,10 @@ def get_recipes(
         recipes = [r for r in recipes if not any(t in r.tags for t in tags)]
     return {"recipes": recipes, "count": len(recipes)}
 
+@app.get("/api/recipes/custom")
+def get_custom_recipes():
+    return {"recipes": [], "count": 0}
+
 @app.get("/api/recipes/{recipe_id}")
 def get_recipe(recipe_id: str):
     for recipe in RECIPES_DB:
@@ -592,9 +614,7 @@ def get_stats(user_id: str):
 def submit_recipe(new_recipe: NewRecipe):
     return {"message": "Recipe submitted for moderation", "recipe_id": f"pending_{uuid.uuid4().hex[:8]}"}
 
-@app.get("/api/recipes/custom")
-def get_custom_recipes():
-    return {"recipes": [], "count": 0}
+
 
 @app.get("/api/telegram/init")
 def telegram_init(user_id: str):
