@@ -1,11 +1,13 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { api } from '../api';
 import type { User, Session } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  userRole: 'user' | 'admin' | null;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -16,6 +18,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<'user' | 'admin' | null>(null);
 
   useEffect(() => {
     // Get initial session
@@ -23,6 +26,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      
+      // Load user role if authenticated
+      if (session?.user) {
+        api.setUserId(session.user.id);
+        loadUserRole(session.user.id);
+      }
     });
 
     // Listen for auth changes
@@ -30,10 +39,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      
+      if (session?.user) {
+        api.setUserId(session.user.id);
+        loadUserRole(session.user.id);
+      } else {
+        setUserRole(null);
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const loadUserRole = async (userId: string) => {
+    try {
+      const result = await api.getUserRole();
+      setUserRole(result.role as 'user' | 'admin');
+    } catch (error) {
+      console.error('Error loading user role:', error);
+      setUserRole('user'); // Default to user role
+    }
+  };
 
   const signInWithGoogle = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
@@ -54,12 +80,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Error signing out:', error);
       throw error;
     }
+    setUserRole(null);
   };
 
   const value = {
     user,
     session,
     loading,
+    userRole,
     signInWithGoogle,
     signOut,
   };

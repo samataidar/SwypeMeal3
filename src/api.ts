@@ -177,6 +177,42 @@ class ApiClient {
     return this.request<{ recipes: any[]; count: number }>('/api/recipes/custom');
   }
 
+  // User role
+  async getUserRole() {
+    return this.request<{ role: string }>(`/api/user/role/${this.userId}`);
+  }
+
+  // Admin - Pending recipes
+  async getPendingRecipes() {
+    return this.request<{ recipes: any[]; count: number }>('/api/recipes/pending');
+  }
+
+  async approveRecipe(recipeId: string, comment?: string) {
+    return this.request<{ message: string }>(
+      `/api/recipes/${recipeId}/approve`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          moderator_id: this.userId,
+          comment,
+        }),
+      }
+    );
+  }
+
+  async rejectRecipe(recipeId: string, comment?: string) {
+    return this.request<{ message: string }>(
+      `/api/recipes/${recipeId}/reject`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          moderator_id: this.userId,
+          comment,
+        }),
+      }
+    );
+  }
+
   // Telegram
   async telegramInit() {
     return this.request<{
