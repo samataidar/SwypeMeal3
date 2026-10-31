@@ -79,13 +79,14 @@ class SupabaseClient:
         return self._request("POST", f"/{table}", json=data)
     
     def upsert(self, table: str, data: dict, on_conflict: str = None) -> dict:
-        """Upsert a record"""
+        """Upsert a record using POST with Prefer header"""
         headers = {**self.headers, "Prefer": "return=representation,resolution=merge-duplicates"}
+        params = {}
         if on_conflict:
-            headers["on_conflict"] = on_conflict
+            params["on_conflict"] = on_conflict
         url = f"{self.rest_url}/{table}"
         with httpx.Client(timeout=10.0) as client:
-            response = client.post(url, headers=headers, json=data)
+            response = client.post(url, headers=headers, params=params, json=data)
             if response.status_code >= 400:
                 raise Exception(f"Supabase error {response.status_code}: {response.text}")
             if response.text:
@@ -303,54 +304,54 @@ def supabase_save_state(user_id: str, state: dict):
         # Ensure user exists first
         ensure_user_exists(user_id)
         
-        # Save queue
+        # Save queue - use upsert to avoid duplicate key errors
         supabase.delete("queue_items", {"user_id": user_id})
         for i, item in enumerate(state.get("queue", [])):
             recipe = item["recipe"]
             ensure_recipe_exists(recipe)
-            supabase.insert("queue_items", {
+            supabase.upsert("queue_items", {
                 "id": item["id"],
                 "user_id": user_id,
                 "recipe_id": recipe["id"],
                 "position": i,
                 "added_at": item.get("added_at")
-            })
+            }, on_conflict="id")
         
-        # Save history
+        # Save history - use upsert to avoid duplicate key errors
         supabase.delete("history_items", {"user_id": user_id})
         for item in state.get("history", []):
             recipe = item["recipe"]
             ensure_recipe_exists(recipe)
-            supabase.insert("history_items", {
+            supabase.upsert("history_items", {
                 "id": item["id"],
                 "user_id": user_id,
                 "recipe_id": recipe["id"],
                 "cooked_at": item.get("cooked_at"),
                 "rating": item.get("rating"),
                 "notes": item.get("notes")
-            })
+            }, on_conflict="id")
         
-        # Save swiped
+        # Save swiped - use upsert to avoid duplicate key errors
         supabase.delete("swiped_recipes", {"user_id": user_id})
         for recipe_id in state.get("swiped_ids", []):
-            supabase.insert("swiped_recipes", {
+            supabase.upsert("swiped_recipes", {
                 "id": str(uuid.uuid4()),
                 "user_id": user_id,
                 "recipe_id": recipe_id,
                 "action": "dislike"
-            })
+            }, on_conflict="id")
         
-        # Save preferences
+        # Save preferences - use upsert to avoid duplicate key errors
         supabase.delete("user_preferences", {"user_id": user_id})
         prefs = state.get("preferences", {})
-        supabase.insert("user_preferences", {
+        supabase.upsert("user_preferences", {
             "id": str(uuid.uuid4()),
             "user_id": user_id,
             "max_calories": prefs.get("max_calories", 800),
             "max_cook_time": prefs.get("max_cook_time", 60),
             "exclude_tags": prefs.get("exclude_tags", []),
             "preferred_difficulty": prefs.get("preferred_difficulty", ["easy", "medium", "hard"])
-        })
+        }, on_conflict="user_id")
         
     except Exception as e:
         print(f"Error saving to Supabase: {e}")
