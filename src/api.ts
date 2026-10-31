@@ -184,7 +184,10 @@ class ApiClient {
 
   // Admin - Pending recipes
   async getPendingRecipes() {
-    return this.request<{ recipes: any[]; count: number }>('/api/recipes/pending');
+    console.log('[API] getPendingRecipes called');
+    const result = await this.request<{ recipes: any[]; count: number }>('/api/recipes/pending');
+    console.log('[API] getPendingRecipes result:', result);
+    return result;
   }
 
   async approveRecipe(recipeId: string, comment?: string) {
