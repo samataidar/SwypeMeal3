@@ -8,13 +8,17 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://swypemeal.onrender.com'
 class ApiClient {
   private userId: string;
 
-  constructor(userId: string = 'guest_' + this.generateGuestId()) {
-    this.userId = localStorage.getItem('swypemeal_user_id') || userId;
-    localStorage.setItem('swypemeal_user_id', this.userId);
+  constructor() {
+    this.userId = localStorage.getItem('swypemeal_user_id') || '';
   }
 
-  private generateGuestId(): string {
-    return Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+  setUserId(userId: string) {
+    this.userId = userId;
+    localStorage.setItem('swypemeal_user_id', userId);
+  }
+
+  getUserId(): string {
+    return this.userId;
   }
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
