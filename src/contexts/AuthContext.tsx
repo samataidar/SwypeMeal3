@@ -53,10 +53,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadUserRole = async (userId: string) => {
     try {
+      console.log('[AuthContext] Loading user role for:', userId);
       const result = await api.getUserRole();
+      console.log('[AuthContext] User role result:', result);
       setUserRole(result.role as 'user' | 'admin');
+      console.log('[AuthContext] User role set to:', result.role);
     } catch (error) {
-      console.error('Error loading user role:', error);
+      console.error('[AuthContext] Error loading user role:', error);
       setUserRole('user'); // Default to user role
     }
   };

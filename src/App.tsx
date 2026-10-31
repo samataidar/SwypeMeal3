@@ -16,7 +16,7 @@ type Tab = 'swipe' | 'queue' | 'history' | 'settings' | 'add' | 'admin';
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('swipe');
   const store = useStore();
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, signOut, userRole } = useAuth();
 
   // Set user ID in API client when user changes
   useEffect(() => {
@@ -42,7 +42,9 @@ function App() {
     return <LoginPage />;
   }
 
-  const isAdmin = user?.user_metadata?.role === 'admin' || user?.role === 'admin';
+  const isAdmin = userRole === 'admin';
+  
+  console.log('[App] userRole:', userRole, 'isAdmin:', isAdmin);
   
   const tabs: { id: Tab; icon: any; label: string; badge?: number }[] = [
     { id: 'swipe', icon: Heart, label: 'Свайп' },
