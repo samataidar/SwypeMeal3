@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Recipe } from '../types';
 import { Plus, Send, CheckCircle, AlertCircle } from 'lucide-react';
+import { api } from '../api';
 
 interface AddRecipeProps {
   onSubmit: (recipe: Omit<Recipe, 'id'>) => Recipe | Promise<Recipe>;
@@ -25,18 +26,18 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
     difficulty: 'easy' as 'easy' | 'medium' | 'hard',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!form.title.trim() || !form.description.trim()) {
       return;
     }
 
-    const recipe: Omit<Recipe, 'id'> = {
+    const recipe = {
       title: form.title.trim(),
       description: form.description.trim(),
       image: form.image,
-      cookTime: Number(form.cookTime),
+      cook_time: Number(form.cookTime),
       servings: Number(form.servings),
       calories: Number(form.calories),
       protein: Number(form.protein),
@@ -48,27 +49,31 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
       difficulty: form.difficulty,
     };
 
-    onSubmit(recipe);
-    setSubmitted(true);
+    try {
+      await api.submitRecipe(recipe);
+      setSubmitted(true);
 
-    // Reset form
-    setForm({
-      title: '',
-      description: '',
-      image: '🍽️',
-      cookTime: 30,
-      servings: 2,
-      calories: 400,
-      protein: 20,
-      fat: 15,
-      carbs: 40,
-      ingredients: '',
-      steps: '',
-      tags: '',
-      difficulty: 'easy',
-    });
+      // Reset form
+      setForm({
+        title: '',
+        description: '',
+        image: '🍽️',
+        cookTime: 30,
+        servings: 2,
+        calories: 400,
+        protein: 20,
+        fat: 15,
+        carbs: 40,
+        ingredients: '',
+        steps: '',
+        tags: '',
+        difficulty: 'easy',
+      });
 
-    setTimeout(() => setSubmitted(false), 4000);
+      setTimeout(() => setSubmitted(false), 4000);
+    } catch (error) {
+      console.error('Error submitting recipe:', error);
+    }
   };
 
   if (submitted) {

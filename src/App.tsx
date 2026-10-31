@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Heart, List, History as HistoryIcon, Settings as SettingsIcon, UtensilsCrossed, Plus, Wifi, WifiOff, RefreshCw, Loader2, LogOut, User } from 'lucide-react';
+import { Heart, List, History as HistoryIcon, Settings as SettingsIcon, UtensilsCrossed, Plus, Wifi, WifiOff, RefreshCw, Loader2, LogOut, User, Shield } from 'lucide-react';
 import SwipeView from './components/SwipeView';
 import CookQueue from './components/CookQueue';
 import History from './components/History';
 import Settings from './components/Settings';
 import AddRecipe from './components/AddRecipe';
+import AdminPanel from './components/AdminPanel';
 import LoginPage from './components/LoginPage';
 import { useStore } from './store';
 import { useAuth } from './contexts/AuthContext';
 import { api } from './api';
 
-type Tab = 'swipe' | 'queue' | 'history' | 'settings' | 'add';
+type Tab = 'swipe' | 'queue' | 'history' | 'settings' | 'add' | 'admin';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('swipe');
@@ -41,11 +42,14 @@ function App() {
     return <LoginPage />;
   }
 
+  const isAdmin = user?.user_metadata?.role === 'admin' || user?.role === 'admin';
+  
   const tabs: { id: Tab; icon: any; label: string; badge?: number }[] = [
     { id: 'swipe', icon: Heart, label: 'Свайп' },
     { id: 'queue', icon: List, label: 'Очередь', badge: store.queue.length },
     { id: 'history', icon: HistoryIcon, label: 'История', badge: store.history.length },
     { id: 'add', icon: Plus, label: 'Добавить' },
+    ...(isAdmin ? [{ id: 'admin' as Tab, icon: Shield, label: 'Админ' }] : []),
     { id: 'settings', icon: SettingsIcon, label: 'Фильтры' },
   ];
 
@@ -171,6 +175,9 @@ function App() {
             onSubmit={store.submitRecipe}
             pendingCount={0}
           />
+        )}
+        {activeTab === 'admin' && isAdmin && (
+          <AdminPanel />
         )}
         {activeTab === 'settings' && (
           <Settings

@@ -612,9 +612,128 @@ def get_stats(user_id: str):
 
 @app.post("/api/recipes/submit")
 def submit_recipe(new_recipe: NewRecipe):
+    """Submit a recipe for moderation"""
+    if USE_SUPABASE and supabase:
+        try:
+            recipe_data = {
+                "author_id": new_recipe.author_id or "anonymous",
+                "title": new_recipe.title,
+                "description": new_recipe.description,
+                "image": new_recipe.image,
+                "cook_time": new_recipe.cook_time,
+                "servings": new_recipe.servings,
+                "calories": new_recipe.calories,
+                "protein": new_recipe.protein,
+                "fat": new_recipe.fat,
+                "carbs": new_recipe.carbs,
+                "ingredients": new_recipe.ingredients,
+                "steps": new_recipe.steps,
+                "tags": new_recipe.tags,
+                "difficulty": new_recipe.difficulty
+            }
+            result = supabase.insert("pending_recipes", recipe_data)
+            return {"message": "Recipe submitted for moderation", "recipe_id": result[0]["id"] if result else None}
+        except Exception as e:
+            print(f"Error submitting recipe: {e}")
     return {"message": "Recipe submitted for moderation", "recipe_id": f"pending_{uuid.uuid4().hex[:8]}"}
 
+# User role endpoints
+@app.get("/api/user/role/{user_id}")
+def get_user_role(user_id: str):
+    """Get user role"""
+    if USE_SUPABASE and supabase:
+        try:
+            result = supabase.select("user_roles", filters={"user_id": user_id})
+            if result:
+                return {"role": result[0].get("role", "user")}
+            return {"role": "user"}
+        except Exception as e:
+            print(f"Error getting user role: {e}")
+    return {"role": "user"}
 
+# Admin endpoints
+@app.get("/api/recipes/pending")
+def get_pending_recipes():
+    """Get recipes pending moderation (admin only)"""
+    if USE_SUPABASE and supabase:
+        try:
+            result = supabase.select("pending_recipes", filters={"status": "pending"}, order="created_at.asc")
+            return {"recipes": result, "count": len(result)}
+        except Exception as e:
+            print(f"Error getting pending recipes: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"recipes": [], "count": 0}
+
+class ModerationAction(BaseModel):
+    moderator_id: str
+    comment: Optional[str] = None
+
+@app.post("/api/recipes/{recipe_id}/approve")
+def approve_recipe(recipe_id: str, action: ModerationAction):
+    """Approve a recipe (admin only)"""
+    if USE_SUPABASE and supabase:
+        try:
+            # Get pending recipe
+            pending = supabase.select("pending_recipes", filters={"id": recipe_id})
+            if not pending:
+                raise HTTPException(status_code=404, detail="Recipe not found")
+            
+            recipe_data = pending[0]
+            
+            # Add to main recipes table
+            new_recipe = {
+                "id": str(uuid.uuid4()),
+                "title": recipe_data["title"],
+                "description": recipe_data["description"],
+                "image": recipe_data["image"],
+                "cook_time": recipe_data["cook_time"],
+                "servings": recipe_data["servings"],
+                "calories": recipe_data["calories"],
+                "protein": recipe_data["protein"],
+                "fat": recipe_data["fat"],
+                "carbs": recipe_data["carbs"],
+                "ingredients": recipe_data["ingredients"],
+                "steps": recipe_data["steps"],
+                "tags": recipe_data["tags"],
+                "difficulty": recipe_data["difficulty"],
+                "is_custom": True,
+                "author_id": recipe_data["author_id"],
+                "status": "approved"
+            }
+            supabase.insert("recipes", new_recipe)
+            
+            # Update pending recipe status
+            supabase._request("PATCH", f"/pending_recipes?id=eq.{recipe_id}", json={
+                "status": "approved",
+                "moderator_id": action.moderator_id,
+                "moderator_comment": action.comment,
+                "reviewed_at": datetime.now().isoformat()
+            })
+            
+            return {"message": "Recipe approved"}
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"Error approving recipe: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=500, detail="Database not configured")
+
+@app.post("/api/recipes/{recipe_id}/reject")
+def reject_recipe(recipe_id: str, action: ModerationAction):
+    """Reject a recipe (admin only)"""
+    if USE_SUPABASE and supabase:
+        try:
+            supabase._request("PATCH", f"/pending_recipes?id=eq.{recipe_id}", json={
+                "status": "rejected",
+                "moderator_id": action.moderator_id,
+                "moderator_comment": action.comment,
+                "reviewed_at": datetime.now().isoformat()
+            })
+            return {"message": "Recipe rejected"}
+        except Exception as e:
+            print(f"Error rejecting recipe: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=500, detail="Database not configured")
 
 @app.get("/api/telegram/init")
 def telegram_init(user_id: str):
