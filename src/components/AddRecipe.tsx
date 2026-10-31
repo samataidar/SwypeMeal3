@@ -7,8 +7,6 @@ interface AddRecipeProps {
   pendingCount: number;
 }
 
-const emojiOptions = ['🍝', '🍜', '🥗', '🍚', '🌮', '🐟', '🌯', '🍰', '🥞', '🍛', '🥩', '🥥', '🍕', '🍔', '🥘', '🍲', '🥙', '🧆', '🥟', '🍱'];
-
 export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
   const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState({
@@ -130,25 +128,28 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
           />
         </div>
 
-        {/* Emoji */}
+        {/* Image URL */}
         <div>
-          <label className="text-sm font-medium text-gray-700 mb-2 block">Иконка</label>
-          <div className="flex flex-wrap gap-2">
-            {emojiOptions.map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                onClick={() => setForm({ ...form, image: emoji })}
-                className={`w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all ${
-                  form.image === emoji
-                    ? 'bg-orange-100 border-2 border-orange-400 scale-110'
-                    : 'bg-gray-50 border-2 border-transparent hover:bg-gray-100'
-                }`}
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
+          <label className="text-sm font-medium text-gray-700 mb-1 block">URL изображения</label>
+          <input
+            type="url"
+            value={form.image}
+            onChange={(e) => setForm({ ...form, image: e.target.value })}
+            placeholder="https://example.com/image.jpg"
+            className="w-full p-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+          />
+          {form.image && (
+            <div className="mt-2">
+              <img 
+                src={form.image} 
+                alt="Preview"
+                className="w-full h-32 object-cover rounded-xl"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            </div>
+          )}
         </div>
 
         {/* Time, Servings */}

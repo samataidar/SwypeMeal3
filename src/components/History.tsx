@@ -65,8 +65,12 @@ export default function History({ history, onRemove }: HistoryProps) {
             className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 transition-all hover:shadow-md"
           >
             <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center text-2xl">
-                {item.recipe.image}
+              <div className="flex-shrink-0 w-12 h-12 bg-green-50 rounded-xl overflow-hidden">
+                <img 
+                  src={item.recipe.image} 
+                  alt={item.recipe.title}
+                  className="w-full h-full object-cover"
+                />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between">

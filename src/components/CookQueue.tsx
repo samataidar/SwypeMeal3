@@ -68,8 +68,12 @@ export default function CookQueue({ queue, onRemove, onCook, onMoveUp, onMoveDow
             className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 transition-all hover:shadow-md"
           >
             <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center text-2xl">
-                {item.recipe.image}
+              <div className="flex-shrink-0 w-12 h-12 bg-orange-50 rounded-xl overflow-hidden">
+                <img 
+                  src={item.recipe.image} 
+                  alt={item.recipe.title}
+                  className="w-full h-full object-cover"
+                />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-gray-900 truncate">{item.recipe.title}</h3>
@@ -138,7 +142,11 @@ export default function CookQueue({ queue, onRemove, onCook, onMoveUp, onMoveDow
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-center mb-4">
-              <span className="text-5xl">{cookingItem.recipe.image}</span>
+              <img 
+                src={cookingItem.recipe.image} 
+                alt={cookingItem.recipe.title}
+                className="w-full h-40 object-cover rounded-2xl"
+              />
               <h3 className="text-xl font-bold mt-2">{cookingItem.recipe.title}</h3>
               <p className="text-gray-500 text-sm mt-1">Отметьте как приготовленное!</p>
             </div>

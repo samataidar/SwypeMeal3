@@ -2,7 +2,7 @@ export interface Recipe {
   id: string;
   title: string;
   description: string;
-  image: string;
+  image: string; // URL to image
   cookTime: number; // minutes
   servings: number;
   calories: number;

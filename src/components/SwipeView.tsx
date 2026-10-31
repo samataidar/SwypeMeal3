@@ -40,10 +40,14 @@ function SwipeCard({ recipe, onSwipeLeft, onSwipeRight, onInfo, isTop, offsetX }
       }}
     >
       <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
-        {/* Image/Emoji area */}
-        <div className="relative h-48 bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center">
-          <span className="text-8xl select-none">{recipe.image}</span>
-
+      {/* Image area */}
+      <div className="relative h-48 bg-gradient-to-br from-orange-50 to-amber-50 overflow-hidden">
+        <img 
+          src={recipe.image} 
+          alt={recipe.title}
+          className="w-full h-full object-cover select-none"
+          draggable={false}
+        />
           {/* Like indicator */}
           <div
             className="absolute top-4 left-4 bg-green-500 text-white px-4 py-2 rounded-xl font-bold text-lg -rotate-12 border-4 border-green-300 pointer-events-none"
@@ -300,12 +304,15 @@ function RecipeDetail({ recipe, onClose }: { recipe: Recipe; onClose: () => void
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6">
-          <div className="text-center mb-4">
-            <span className="text-6xl">{recipe.image}</span>
-            <h2 className="text-2xl font-bold mt-3">{recipe.title}</h2>
-            <p className="text-gray-500 mt-1">{recipe.description}</p>
-          </div>
-
+      <div className="text-center mb-4">
+        <img 
+          src={recipe.image} 
+          alt={recipe.title}
+          className="w-full h-48 object-cover rounded-2xl"
+        />
+        <h2 className="text-2xl font-bold mt-3">{recipe.title}</h2>
+        <p className="text-gray-500 mt-1">{recipe.description}</p>
+      </div>
           {/* Macros */}
           <div className="grid grid-cols-4 gap-2 mb-6">
             <div className="bg-orange-50 rounded-xl p-3 text-center">
