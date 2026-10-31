@@ -35,10 +35,13 @@ export default function AdminPanel() {
   const loadPendingRecipes = async () => {
     try {
       setLoading(true);
+      console.log('[AdminPanel] Loading pending recipes...');
       const result = await api.getPendingRecipes();
+      console.log('[AdminPanel] API result:', result);
       setPendingRecipes(result.recipes);
+      console.log('[AdminPanel] Set pending recipes:', result.recipes.length);
     } catch (error) {
-      console.error('Error loading pending recipes:', error);
+      console.error('[AdminPanel] Error loading pending recipes:', error);
     } finally {
       setLoading(false);
     }
