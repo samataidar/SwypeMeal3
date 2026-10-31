@@ -476,6 +476,19 @@ def get_recipes(
 ):
     state = get_state(user_id)
     recipes = RECIPES_DB.copy()
+    
+    # Добавляем одобренные пользовательские рецепты из Supabase
+    if USE_SUPABASE and supabase:
+        try:
+            custom_recipes = supabase.select("recipes", filters={"status": "approved"})
+            for cr in custom_recipes:
+                # Проверяем что рецепт ещё не добавлен
+                if not any(r.id == cr["id"] for r in recipes):
+                    recipes.append(Recipe(**cr))
+            print(f"[DEBUG] Loaded {len(custom_recipes)} custom recipes from Supabase")
+        except Exception as e:
+            print(f"[ERROR] Failed to load custom recipes: {e}")
+    
     recipes = [r for r in recipes if r.id not in state["swiped_ids"]]
     queue_ids = [q["recipe"]["id"] for q in state["queue"]]
     recipes = [r for r in recipes if r.id not in queue_ids]
@@ -492,6 +505,13 @@ def get_recipes(
 
 @app.get("/api/recipes/custom")
 def get_custom_recipes():
+    """Get approved custom recipes from Supabase"""
+    if USE_SUPABASE and supabase:
+        try:
+            custom_recipes = supabase.select("recipes", filters={"status": "approved", "is_custom": True})
+            return {"recipes": custom_recipes, "count": len(custom_recipes)}
+        except Exception as e:
+            print(f"[ERROR] Failed to load custom recipes: {e}")
     return {"recipes": [], "count": 0}
 
 # Admin endpoints - ВАЖНО: должны быть ПЕРЕД /api/recipes/{recipe_id}
