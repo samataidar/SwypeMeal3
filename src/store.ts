@@ -72,6 +72,9 @@ function mapBackendHistoryItem(h: any): HistoryItem {
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline';
 
 export function useStore() {
+  // Get user ID from Supabase Auth
+  const userId = api.getUserId();
+
   // Local state (source of truth for UI)
   const [queue, setQueue] = useState<QueueItem[]>(() => loadFromStorage(STORAGE_KEYS.queue, []));
   const [history, setHistory] = useState<HistoryItem[]>(() => loadFromStorage(STORAGE_KEYS.history, []));

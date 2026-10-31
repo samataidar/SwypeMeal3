@@ -1,17 +1,45 @@
-import { useState } from 'react';
-import { Heart, List, History as HistoryIcon, Settings as SettingsIcon, UtensilsCrossed, Plus, Wifi, WifiOff, RefreshCw, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Heart, List, History as HistoryIcon, Settings as SettingsIcon, UtensilsCrossed, Plus, Wifi, WifiOff, RefreshCw, Loader2, LogOut, User } from 'lucide-react';
 import SwipeView from './components/SwipeView';
 import CookQueue from './components/CookQueue';
 import History from './components/History';
 import Settings from './components/Settings';
 import AddRecipe from './components/AddRecipe';
+import LoginPage from './components/LoginPage';
 import { useStore } from './store';
+import { useAuth } from './contexts/AuthContext';
+import { api } from './api';
 
 type Tab = 'swipe' | 'queue' | 'history' | 'settings' | 'add';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('swipe');
   const store = useStore();
+  const { user, loading, signOut } = useAuth();
+
+  // Set user ID in API client when user changes
+  useEffect(() => {
+    if (user) {
+      api.setUserId(user.id);
+    }
+  }, [user]);
+
+  // Show loading screen while checking auth
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <Loader2 size={48} className="animate-spin text-orange-500 mx-auto mb-4" />
+          <p className="text-gray-500">Загрузка...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login page if not authenticated
+  if (!user) {
+    return <LoginPage />;
+  }
 
   const tabs: { id: Tab; icon: any; label: string; badge?: number }[] = [
     { id: 'swipe', icon: Heart, label: 'Свайп' },
@@ -83,6 +111,27 @@ function App() {
           <SyncIndicator />
           <div className="text-xs text-gray-400">
             {store.availableRecipes.length} рецептов
+          </div>
+          {/* User menu */}
+          <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-200">
+            {user.user_metadata?.avatar_url ? (
+              <img 
+                src={user.user_metadata.avatar_url} 
+                alt="Avatar" 
+                className="w-8 h-8 rounded-full"
+              />
+            ) : (
+              <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                <User size={16} className="text-orange-600" />
+              </div>
+            )}
+            <button
+              onClick={signOut}
+              className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+              title="Выйти"
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </header>
