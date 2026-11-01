@@ -21,6 +21,15 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
   const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
   const uploadImage = async (file: File) => {
+    // Проверка что Cloudinary настроен
+    if (CLOUDINARY_CLOUD_NAME === 'your-cloud-name' || CLOUDINARY_UPLOAD_PRESET === 'your-upload-preset') {
+      setError('Cloudinary не настроен. Обратитесь к администратору.');
+      console.error('[ImageUpload] Cloudinary не настроен. Добавьте переменные окружения:');
+      console.error('  VITE_CLOUDINARY_CLOUD_NAME');
+      console.error('  VITE_CLOUDINARY_UPLOAD_PRESET');
+      return;
+    }
+
     // Validate
     if (!ALLOWED_TYPES.includes(file.type)) {
       setError('Допустимые форматы: JPG, PNG, WebP, GIF');
@@ -35,6 +44,8 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
     setOptimizing(true);
 
     try {
+      console.log('[ImageUpload] Начинаем загрузку:', file.name, formatFileSize(file.size));
+      
       // Оптимизация изображения перед загрузкой
       const optimizedBlob = await optimizeImage(file, {
         maxWidth: 800,
@@ -53,12 +64,14 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
         { type: 'image/webp' }
       );
 
-      console.log(`Оптимизация: ${formatFileSize(file.size)} → ${formatFileSize(optimizedBlob.size)}`);
+      console.log(`[ImageUpload] Оптимизация: ${formatFileSize(file.size)} → ${formatFileSize(optimizedBlob.size)}`);
 
       const formData = new FormData();
       formData.append('file', optimizedFile);
       formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
       formData.append('folder', 'swypemeal/recipes');
+
+      console.log('[ImageUpload] Загружаем в Cloudinary:', CLOUDINARY_CLOUD_NAME);
 
       const response = await fetch(
         `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
@@ -68,16 +81,21 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
         }
       );
 
+      console.log('[ImageUpload] Response status:', response.status);
+
       if (!response.ok) {
-        throw new Error('Ошибка загрузки изображения');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[ImageUpload] Cloudinary error:', errorData);
+        throw new Error(errorData.error?.message || `Ошибка загрузки (код ${response.status})`);
       }
 
       const data = await response.json();
+      console.log('[ImageUpload] Успешно загружено:', data.secure_url);
       
       // Cloudinary returns optimized URL
       onChange(data.secure_url);
     } catch (err: any) {
-      console.error('Upload error:', err);
+      console.error('[ImageUpload] Upload error:', err);
       setError(err.message || 'Ошибка загрузки');
     } finally {
       setOptimizing(false);
