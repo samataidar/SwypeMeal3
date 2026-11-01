@@ -14,7 +14,7 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
   const [form, setForm] = useState({
     title: '',
     description: '',
-    image: '🍽️',
+    image: '',
     cookTime: 30,
     servings: 2,
     calories: 400,
@@ -34,10 +34,13 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
       return;
     }
 
+    // Если изображение не загружено, используем дефолтное
+    const imageUrl = form.image.trim() || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&h=600&fit=crop';
+
     const recipe = {
       title: form.title.trim(),
       description: form.description.trim(),
-      image: form.image,
+      image: imageUrl,
       cook_time: Number(form.cookTime),
       servings: Number(form.servings),
       calories: Number(form.calories),
@@ -58,7 +61,7 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
       setForm({
         title: '',
         description: '',
-        image: '🍽️',
+        image: '',
         cookTime: 30,
         servings: 2,
         calories: 400,
