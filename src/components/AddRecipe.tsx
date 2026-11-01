@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Recipe } from '../types';
 import { Plus, Send, CheckCircle, AlertCircle } from 'lucide-react';
 import { api } from '../api';
+import ImageUpload from './ImageUpload';
 
 interface AddRecipeProps {
   onSubmit: (recipe: Omit<Recipe, 'id'>) => Recipe | Promise<Recipe>;
@@ -133,28 +134,12 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
           />
         </div>
 
-        {/* Image URL */}
+        {/* Image Upload */}
         <div>
-          <label className="text-sm font-medium text-gray-700 mb-1 block">URL изображения</label>
-          <input
-            type="url"
+          <ImageUpload
             value={form.image}
-            onChange={(e) => setForm({ ...form, image: e.target.value })}
-            placeholder="https://example.com/image.jpg"
-            className="w-full p-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+            onChange={(url) => setForm({ ...form, image: url })}
           />
-          {form.image && (
-            <div className="mt-2">
-              <img 
-                src={form.image} 
-                alt="Preview"
-                className="w-full h-32 object-cover rounded-xl"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
-            </div>
-          )}
         </div>
 
         {/* Time, Servings */}
