@@ -4,6 +4,7 @@ html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
+  overflow: hidden;
 }
 
 body {
@@ -11,13 +12,19 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: #f9fafb;
+  /* Предотвращаем bounce-scroll на iOS */
+  overscroll-behavior: none;
+  /* Фиксируем viewport */
+  position: fixed;
+  width: 100%;
 }
 
+/* Поддержка safe area для iPhone с notch */
 .safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
 }
 
-/* Custom scrollbar */
+/* Кастомный скроллбар */
 ::-webkit-scrollbar {
   width: 4px;
 }
@@ -31,7 +38,7 @@ body {
   border-radius: 2px;
 }
 
-/* Swipe card touch handling */
+/* Свайп-карта */
 .select-none {
   touch-action: pan-y;
   -webkit-user-select: none;
@@ -46,7 +53,7 @@ body {
   overflow: hidden;
 }
 
-/* Animations */
+/* Анимации */
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -63,4 +70,38 @@ body {
 
 .animate-slide-up {
   animation: slide-up 0.3s ease-out;
+}
+
+/* 
+  Мобильный viewport fix
+  Используем dvh (dynamic viewport height) для учёта адресной строки
+  Fallback на vh для старых браузеров
+*/
+@supports (height: 100dvh) {
+  .h-screen-mobile {
+    height: 100dvh;
+  }
+}
+
+@supports not (height: 100dvh) {
+  .h-screen-mobile {
+    height: 100vh;
+  }
+}
+
+/* Для iOS Safari — используем -webkit-fill-available */
+@supports (-webkit-touch-callout: none) {
+  .h-screen-mobile {
+    height: -webkit-fill-available;
+  }
+}
+
+/* Предотвращаем zoom на input фокусе на iOS */
+input, select, textarea {
+  font-size: 16px !important;
+}
+
+/* Убираем highlight при тапе на мобильных */
+* {
+  -webkit-tap-highlight-color: transparent;
 }

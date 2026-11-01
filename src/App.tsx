@@ -104,7 +104,7 @@ function App() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 max-w-lg mx-auto relative overflow-hidden">
+    <div className="h-screen-mobile flex flex-col bg-gray-50 max-w-lg mx-auto relative overflow-hidden">
       {/* Header */}
       <header className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -195,7 +195,7 @@ function App() {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="bg-white border-t border-gray-100 px-2 py-2 flex-shrink-0 safe-bottom">
+      <nav className="bg-white border-t border-gray-100 px-2 pt-2 flex-shrink-0 safe-bottom">
         <div className="flex items-center justify-around">
           {tabs.map((tab) => {
             const Icon = tab.icon;

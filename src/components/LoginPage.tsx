@@ -13,7 +13,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 flex flex-col">
+    <div className="h-screen-mobile bg-gradient-to-br from-orange-50 via-white to-amber-50 flex flex-col">
       {/* Header */}
       <header className="px-6 py-4">
         <div className="flex items-center gap-2">
