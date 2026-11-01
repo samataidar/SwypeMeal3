@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Recipe } from '../types';
 import { Heart, X, Clock, Flame, Info, RotateCcw } from 'lucide-react';
 
@@ -128,6 +128,9 @@ interface SwipeViewProps {
 }
 
 export default function SwipeView({ recipes: availableRecipes, onLike, onDislike, onReset }: SwipeViewProps) {
+  // Стабилизируем список рецептов - создаем копию при монтировании
+  // и не пересоздаем при каждом изменении availableRecipes
+  const [stableRecipes, setStableRecipes] = useState<Recipe[]>(() => [...availableRecipes]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [offsetX, setOffsetX] = useState(0);
@@ -138,6 +141,16 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
   const containerRef = useRef<HTMLDivElement>(null);
 
   const SWIPE_THRESHOLD = 100;
+
+  // Обновляем стабильный список только когда пользователь нажимает "Начать заново"
+  // или когда availableRecipes становится пустым (все рецепты просмотрены)
+  useEffect(() => {
+    // Если текущий список пуст и есть новые доступные рецепты - обновляем
+    if (stableRecipes.length === 0 && availableRecipes.length > 0) {
+      setStableRecipes([...availableRecipes]);
+      setCurrentIndex(0);
+    }
+  }, [availableRecipes, stableRecipes.length]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     setIsDragging(true);
@@ -171,9 +184,9 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
 
     setTimeout(() => {
       if (direction === 'right') {
-        onLike(availableRecipes[currentIndex]);
+        onLike(stableRecipes[currentIndex]);
       } else {
-        onDislike(availableRecipes[currentIndex]);
+        onDislike(stableRecipes[currentIndex]);
       }
       setCurrentIndex((prev) => prev + 1);
       setOffsetX(0);
@@ -182,25 +195,29 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
   };
 
   const handleButtonSwipe = (direction: 'left' | 'right') => {
-    if (currentIndex >= availableRecipes.length) return;
+    if (currentIndex >= stableRecipes.length) return;
     triggerSwipe(direction);
   };
 
-  // Reset index when recipes change (after reset)
-  useEffect(() => {
-    if (currentIndex > 0 && availableRecipes.length > 0 && currentIndex >= availableRecipes.length) {
+  // Handle reset - обновляем стабильный список из новых доступных рецептов
+  const handleReset = () => {
+    onReset();
+    // После сброса swipedIds, availableRecipes обновится
+    // Обновляем stableRecipes при следующем рендере через useEffect
+    setTimeout(() => {
+      setStableRecipes([...availableRecipes]);
       setCurrentIndex(0);
-    }
-  }, [availableRecipes.length]);
+    }, 100);
+  };
 
-  if (availableRecipes.length === 0 || currentIndex >= availableRecipes.length) {
+  if (stableRecipes.length === 0 || currentIndex >= stableRecipes.length) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 text-center">
         <div className="text-6xl mb-4">🎉</div>
         <h2 className="text-2xl font-bold text-gray-800 mb-2">Рецепты закончились!</h2>
         <p className="text-gray-500 mb-6">Вы просмотрели все доступные рецепты. Сбросьте список или измените фильтры.</p>
         <button
-          onClick={onReset}
+          onClick={handleReset}
           className="flex items-center gap-2 bg-orange-500 text-white px-6 py-3 rounded-2xl font-medium hover:bg-orange-600 transition-colors"
         >
           <RotateCcw size={18} />
@@ -210,8 +227,8 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
     );
   }
 
-  const currentRecipe = availableRecipes[currentIndex];
-  const nextRecipe = currentIndex + 1 < availableRecipes.length ? availableRecipes[currentIndex + 1] : null;
+  const currentRecipe = stableRecipes[currentIndex];
+  const nextRecipe = currentIndex + 1 < stableRecipes.length ? stableRecipes[currentIndex + 1] : null;
 
   return (
     <div className="flex flex-col items-center h-full px-4 py-4">
@@ -282,7 +299,7 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
 
       {/* Progress */}
       <div className="text-sm text-gray-400 mb-2">
-        {currentIndex + 1} из {availableRecipes.length}
+        {currentIndex + 1} из {stableRecipes.length}
       </div>
 
       {/* Recipe detail modal */}
