@@ -135,11 +135,21 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
     }
   };
 
+  // Проверяем что value это валидный URL изображения
+  const isValidImageUrl = (url: string): boolean => {
+    if (!url || url.trim() === '') return false;
+    // Проверяем что это URL (начинается с http/https или это data URL)
+    return url.startsWith('http://') || 
+           url.startsWith('https://') || 
+           url.startsWith('data:image/') ||
+           url.startsWith('blob:');
+  };
+
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium text-gray-700 block">Изображение блюда</label>
       
-      {value ? (
+      {isValidImageUrl(value) ? (
         // Preview with remove button
         <div className="relative group">
           <img
@@ -231,7 +241,7 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
       
       <input
         type="url"
-        value={value?.startsWith('blob:') || value?.startsWith('data:') ? '' : value}
+        value={isValidImageUrl(value) && !value.startsWith('blob:') ? value : ''}
         onChange={(e) => onChange(e.target.value)}
         placeholder="https://example.com/image.jpg"
         className="w-full p-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
