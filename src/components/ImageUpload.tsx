@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { Upload, X, Loader2 } from 'lucide-react';
+import { optimizeImage, formatFileSize } from '../utils/imageOptimizer';
 
 interface ImageUploadProps {
   value: string;
@@ -11,6 +12,7 @@ const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET |
 
 export default function ImageUpload({ value, onChange }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -30,14 +32,32 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
     }
 
     setError(null);
-    setUploading(true);
+    setOptimizing(true);
 
     try {
+      // Оптимизация изображения перед загрузкой
+      const optimizedBlob = await optimizeImage(file, {
+        maxWidth: 800,
+        maxHeight: 800,
+        quality: 0.85,
+        format: 'webp',
+      });
+
+      setOptimizing(false);
+      setUploading(true);
+
+      // Создаем новый File из Blob с правильным именем
+      const optimizedFile = new File(
+        [optimizedBlob],
+        `recipe-${Date.now()}.webp`,
+        { type: 'image/webp' }
+      );
+
+      console.log(`Оптимизация: ${formatFileSize(file.size)} → ${formatFileSize(optimizedBlob.size)}`);
+
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', optimizedFile);
       formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-      
-      // Optional: add folder
       formData.append('folder', 'swypemeal/recipes');
 
       const response = await fetch(
@@ -60,6 +80,7 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
       console.error('Upload error:', err);
       setError(err.message || 'Ошибка загрузки');
     } finally {
+      setOptimizing(false);
       setUploading(false);
     }
   };
@@ -133,13 +154,19 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
               ? 'border-orange-400 bg-orange-50' 
               : 'border-gray-300 bg-gray-50 hover:border-orange-300 hover:bg-orange-50/50'
             }
-            ${uploading ? 'pointer-events-none opacity-60' : ''}
+            ${(uploading || optimizing) ? 'pointer-events-none opacity-60' : ''}
           `}
         >
-          {uploading ? (
+          {optimizing ? (
+            <>
+              <Loader2 size={32} className="animate-spin text-blue-500" />
+              <span className="text-sm text-gray-600">Оптимизация изображения...</span>
+              <span className="text-xs text-gray-500">Сжатие и ресайз</span>
+            </>
+          ) : uploading ? (
             <>
               <Loader2 size={32} className="animate-spin text-orange-500" />
-              <span className="text-sm text-gray-600">Загрузка...</span>
+              <span className="text-sm text-gray-600">Загрузка в облако...</span>
             </>
           ) : (
             <>
@@ -152,6 +179,9 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
                   JPG, PNG, WebP, GIF до 10MB
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Изображение будет автоматически оптимизировано
                 </p>
               </div>
             </>
