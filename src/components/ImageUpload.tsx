@@ -1,20 +1,21 @@
 import { useState, useRef } from 'react';
-import { Upload, X, Image as ImageIcon, Loader2 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { Upload, X, Loader2 } from 'lucide-react';
 
 interface ImageUploadProps {
   value: string;
   onChange: (url: string) => void;
-  folder?: string;
 }
 
-export default function ImageUpload({ value, onChange, folder = 'recipes' }: ImageUploadProps) {
+const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'your-cloud-name';
+const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'your-upload-preset';
+
+export default function ImageUpload({ value, onChange }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+  const MAX_SIZE = 10 * 1024 * 1024; // 10MB
   const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
   const uploadImage = async (file: File) => {
@@ -24,7 +25,7 @@ export default function ImageUpload({ value, onChange, folder = 'recipes' }: Ima
       return;
     }
     if (file.size > MAX_SIZE) {
-      setError('Максимальный размер: 5MB');
+      setError('Максимальный размер: 10MB');
       return;
     }
 
@@ -32,26 +33,29 @@ export default function ImageUpload({ value, onChange, folder = 'recipes' }: Ima
     setUploading(true);
 
     try {
-      // Generate unique filename
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      
+      // Optional: add folder
+      formData.append('folder', 'swypemeal/recipes');
 
-      // Upload to Supabase Storage
-      const { data, error } = await supabase.storage
-        .from('recipe-images')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Ошибка загрузки изображения');
+      }
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('recipe-images')
-        .getPublicUrl(data.path);
-
-      onChange(publicUrl);
+      const data = await response.json();
+      
+      // Cloudinary returns optimized URL
+      onChange(data.secure_url);
     } catch (err: any) {
       console.error('Upload error:', err);
       setError(err.message || 'Ошибка загрузки');
@@ -147,7 +151,7 @@ export default function ImageUpload({ value, onChange, folder = 'recipes' }: Ima
                   Нажмите или перетащите изображение
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
-                  JPG, PNG, WebP, GIF до 5MB
+                  JPG, PNG, WebP, GIF до 10MB
                 </p>
               </div>
             </>
