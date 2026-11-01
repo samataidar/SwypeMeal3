@@ -65,10 +65,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
+    // Используем production URL для OAuth redirect
+    const redirectTo = import.meta.env.VITE_SITE_URL 
+      || (import.meta.env.PROD ? 'https://swype-meal3.vercel.app' : window.location.origin);
+    
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin,
+        redirectTo,
       },
     });
     if (error) {
