@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { QueueItem } from '../types';
 import { Clock, Flame, Check, Trash2, ChefHat, Star, ChevronUp, ChevronDown } from 'lucide-react';
-import SafeImage from './SafeImage';
 
 interface CookQueueProps {
   queue: QueueItem[];
@@ -70,9 +69,8 @@ export default function CookQueue({ queue, onRemove, onCook, onMoveUp, onMoveDow
           >
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0 w-12 h-12 bg-orange-50 rounded-xl overflow-hidden">
-                <SafeImage
-                  src={item.recipe.image}
-                  recipeId={item.recipe.id}
+                <img 
+                  src={item.recipe.image} 
                   alt={item.recipe.title}
                   className="w-full h-full object-cover"
                 />
@@ -144,9 +142,8 @@ export default function CookQueue({ queue, onRemove, onCook, onMoveUp, onMoveDow
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-center mb-4">
-              <SafeImage
-                src={cookingItem.recipe.image}
-                recipeId={cookingItem.recipe.id}
+              <img 
+                src={cookingItem.recipe.image} 
                 alt={cookingItem.recipe.title}
                 className="w-full h-40 object-cover rounded-2xl"
               />
