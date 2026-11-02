@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
 import { Check, X, Clock, MessageSquare, Loader2 } from 'lucide-react';
+import SafeImage from './SafeImage';
 
 interface PendingRecipe {
   id: string;
@@ -106,8 +107,9 @@ export default function AdminPanel() {
               className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
             >
               <div className="flex gap-4 p-4">
-                <img
+                <SafeImage
                   src={recipe.image}
+                  recipeId={recipe.id}
                   alt={recipe.title}
                   className="w-24 h-24 object-cover rounded-xl flex-shrink-0"
                 />
@@ -191,8 +193,9 @@ export default function AdminPanel() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6">
-              <img
+              <SafeImage
                 src={selectedRecipe.image}
+                recipeId={selectedRecipe.id}
                 alt={selectedRecipe.title}
                 className="w-full h-48 object-cover rounded-2xl mb-4"
               />
