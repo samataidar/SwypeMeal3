@@ -281,7 +281,10 @@ export function useStore() {
   }, [syncEnabled, backendAvailable]);
 
   // Mark swiped
-  const markSwiped = useCallback(async (recipeId: string) => {
+  const markSwiped = useCallback(async (
+    recipeId: string,
+    action: 'like' | 'dislike' = 'dislike'
+  ) => {
     setSwipedIds((prev) => {
       if (prev.includes(recipeId)) return prev;
       return [...prev, recipeId];
@@ -289,7 +292,7 @@ export function useStore() {
 
     if (syncEnabled && backendAvailable) {
       try {
-        await api.swipe(recipeId, 'dislike');
+        await api.swipe(recipeId, action);
       } catch (error) {
         console.warn('Failed to sync swipe to backend');
       }

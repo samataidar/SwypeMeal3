@@ -2,7 +2,7 @@
 SwypeMeal Backend - Supabase REST API Version
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
@@ -15,9 +15,25 @@ import httpx
 app = FastAPI(title="SwypeMeal API", version="2.0.0")
 
 # CORS
+# Разрешённые origins можно переопределить через CORS_ORIGINS (через запятую).
+_default_origins = (
+    "https://swype-meal3.vercel.app,"
+    "https://swypemeal.ru,"
+    "https://www.swypemeal.ru,"
+    "http://localhost:3000,"
+    "http://localhost:5173"
+)
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", _default_origins).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
+    # Vercel preview deployments: https://swype-meal3-*.vercel.app
+    allow_origin_regex=r"https://swype-meal3[^/]*\.vercel\.app",
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -28,9 +44,17 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 USE_SUPABASE = os.getenv("USE_SUPABASE", "false").lower() == "true"
 
+# Auth is available whenever Supabase credentials are configured, even if
+# storage mode is temporarily disabled.
+AUTH_ENABLED = bool(SUPABASE_URL and SUPABASE_KEY)
+# Local development escape hatch. Never enable in production.
+ALLOW_INSECURE_AUTH = os.getenv("ALLOW_INSECURE_AUTH", "false").lower() == "true"
+
 print(f"[DEBUG] SUPABASE_URL: {'SET' if SUPABASE_URL else 'NOT SET'}")
 print(f"[DEBUG] SUPABASE_KEY: {'SET' if SUPABASE_KEY else 'NOT SET'}")
 print(f"[DEBUG] USE_SUPABASE: {USE_SUPABASE}")
+print(f"[DEBUG] AUTH_ENABLED: {AUTH_ENABLED}")
+print(f"[DEBUG] ALLOW_INSECURE_AUTH: {ALLOW_INSECURE_AUTH}")
 
 # ============================================
 # Supabase REST API Client (using httpx directly)
@@ -122,23 +146,133 @@ if USE_SUPABASE and SUPABASE_URL and SUPABASE_KEY:
         supabase = SupabaseClient(SUPABASE_URL, SUPABASE_KEY)
         
         if supabase.test_connection():
-            print(f"✓ Supabase connected successfully via REST API")
+            print("[OK] Supabase connected successfully via REST API")
         else:
-            print(f"✗ Supabase connection test failed")
+            print("[ERROR] Supabase connection test failed")
             USE_SUPABASE = False
             supabase = None
     except Exception as e:
-        print(f"✗ Supabase connection failed: {e}")
+        print(f"[ERROR] Supabase connection failed: {e}")
         USE_SUPABASE = False
         supabase = None
 else:
-    print("⚠ Supabase mode disabled, using file storage")
+    print("[WARN] Supabase mode disabled, using file storage")
+
+# ============================================
+# Authentication / authorization
+# ============================================
+
+def _auth_error(detail: str = "Authentication required") -> HTTPException:
+    return HTTPException(
+        status_code=401,
+        detail=detail,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def verify_supabase_token(access_token: str) -> dict:
+    """Verify a Supabase access token and return the authenticated user."""
+    if not AUTH_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail="Authentication is not configured on the server",
+        )
+
+    url = f"{SUPABASE_URL.rstrip('/')}/auth/v1/user"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {access_token}",
+    }
+
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            response = client.get(url, headers=headers)
+    except httpx.HTTPError as exc:
+        print(f"[AUTH] Supabase auth request failed: {exc}")
+        raise HTTPException(
+            status_code=503,
+            detail="Authentication service is unavailable",
+        )
+
+    if response.status_code in (401, 403):
+        raise _auth_error("Invalid or expired token")
+    if response.status_code >= 400:
+        print(f"[AUTH] Supabase auth error {response.status_code}: {response.text}")
+        raise HTTPException(
+            status_code=503,
+            detail="Authentication service error",
+        )
+
+    try:
+        user = response.json()
+    except ValueError:
+        raise HTTPException(
+            status_code=503,
+            detail="Authentication service returned an invalid response",
+        )
+
+    if not isinstance(user, dict) or not user.get("id"):
+        raise _auth_error("Invalid token payload")
+
+    return user
+
+
+def get_current_user(request: Request) -> dict:
+    """FastAPI dependency: resolve the current user from the Bearer token."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        # Development-only fallback. Requires explicit opt-in.
+        if ALLOW_INSECURE_AUTH:
+            dev_user_id = request.headers.get("X-User-ID", "").strip()
+            if dev_user_id:
+                return {"id": dev_user_id, "dev": True}
+        raise _auth_error()
+
+    token = auth_header[7:].strip()
+    if not token:
+        raise _auth_error()
+
+    return verify_supabase_token(token)
+
+
+def get_role_for_user(user_id: str) -> str:
+    """Return the user's role from user_roles."""
+    if not (USE_SUPABASE and supabase):
+        return "user"
+
+    try:
+        result = supabase.select("user_roles", filters={"user_id": user_id})
+        if result:
+            return result[0].get("role", "user")
+        return "user"
+    except Exception as exc:
+        print(f"[AUTH] Failed to load role for {user_id}: {exc}")
+        raise HTTPException(
+            status_code=503,
+            detail="Role service is unavailable",
+        )
+
+
+def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
+    """FastAPI dependency: allow only users with the admin role."""
+    if get_role_for_user(current_user["id"]) != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
+
+
+def ensure_user_access(path_user_id: str, current_user: dict) -> None:
+    """Prevent one user from reading or modifying another user's data."""
+    if path_user_id != current_user["id"]:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only access your own data",
+        )
 
 # ============================================
 # File storage fallback
 # ============================================
 
-DATA_DIR = "data"
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 os.makedirs(DATA_DIR, exist_ok=True)
 
 def load_user_state(user_id: str) -> dict:
@@ -468,12 +602,13 @@ def root():
 
 @app.get("/api/recipes")
 def get_recipes(
-    user_id: str = "default",
     max_calories: Optional[int] = None,
     max_cook_time: Optional[int] = None,
     difficulty: Optional[str] = None,
     exclude_tags: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
 ):
+    user_id = current_user["id"]
     state = get_state(user_id)
     recipes = RECIPES_DB.copy()
     
@@ -504,7 +639,7 @@ def get_recipes(
     return {"recipes": recipes, "count": len(recipes)}
 
 @app.get("/api/recipes/custom")
-def get_custom_recipes():
+def get_custom_recipes(current_user: dict = Depends(get_current_user)):
     """Get approved custom recipes from Supabase"""
     if USE_SUPABASE and supabase:
         try:
@@ -516,7 +651,7 @@ def get_custom_recipes():
 
 # Admin endpoints - ВАЖНО: должны быть ПЕРЕД /api/recipes/{recipe_id}
 @app.get("/api/recipes/pending")
-def get_pending_recipes():
+def get_pending_recipes(current_user: dict = Depends(require_admin)):
     """Get recipes pending moderation (admin only)"""
     print(f"[DEBUG] get_pending_recipes called, USE_SUPABASE={USE_SUPABASE}, supabase={supabase is not None}")
     if USE_SUPABASE and supabase:
@@ -531,12 +666,15 @@ def get_pending_recipes():
     return {"recipes": [], "count": 0}
 
 @app.post("/api/recipes/submit")
-def submit_recipe(new_recipe: NewRecipe):
+def submit_recipe(
+    new_recipe: NewRecipe,
+    current_user: dict = Depends(get_current_user),
+):
     """Submit a recipe for moderation"""
     if USE_SUPABASE and supabase:
         try:
             recipe_data = {
-                "author_id": new_recipe.author_id or "anonymous",
+                "author_id": current_user["id"],
                 "title": new_recipe.title,
                 "description": new_recipe.description,
                 "image": new_recipe.image,
@@ -558,11 +696,17 @@ def submit_recipe(new_recipe: NewRecipe):
     return {"message": "Recipe submitted for moderation", "recipe_id": f"pending_{uuid.uuid4().hex[:8]}"}
 
 class ModerationAction(BaseModel):
-    moderator_id: str
+    # Kept optional for backward compatibility; the server always uses the
+    # authenticated user's id as the moderator id.
+    moderator_id: Optional[str] = None
     comment: Optional[str] = None
 
 @app.post("/api/recipes/{recipe_id}/approve")
-def approve_recipe(recipe_id: str, action: ModerationAction):
+def approve_recipe(
+    recipe_id: str,
+    action: ModerationAction,
+    current_user: dict = Depends(require_admin),
+):
     """Approve a recipe (admin only)"""
     if USE_SUPABASE and supabase:
         try:
@@ -598,7 +742,7 @@ def approve_recipe(recipe_id: str, action: ModerationAction):
             # Update pending recipe status
             supabase._request("PATCH", f"/pending_recipes?id=eq.{recipe_id}", json={
                 "status": "approved",
-                "moderator_id": action.moderator_id,
+                "moderator_id": current_user["id"],
                 "moderator_comment": action.comment,
                 "reviewed_at": datetime.now().isoformat()
             })
@@ -612,13 +756,17 @@ def approve_recipe(recipe_id: str, action: ModerationAction):
     raise HTTPException(status_code=500, detail="Database not configured")
 
 @app.post("/api/recipes/{recipe_id}/reject")
-def reject_recipe(recipe_id: str, action: ModerationAction):
+def reject_recipe(
+    recipe_id: str,
+    action: ModerationAction,
+    current_user: dict = Depends(require_admin),
+):
     """Reject a recipe (admin only)"""
     if USE_SUPABASE and supabase:
         try:
             supabase._request("PATCH", f"/pending_recipes?id=eq.{recipe_id}", json={
                 "status": "rejected",
-                "moderator_id": action.moderator_id,
+                "moderator_id": current_user["id"],
                 "moderator_comment": action.comment,
                 "reviewed_at": datetime.now().isoformat()
             })
@@ -630,43 +778,55 @@ def reject_recipe(recipe_id: str, action: ModerationAction):
 
 # ВАЖНО: Этот маршрут должен быть ПОСЛЕ всех конкретных маршрутов /api/recipes/...
 @app.get("/api/recipes/{recipe_id}")
-def get_recipe(recipe_id: str):
-    for recipe in RECIPES_DB:
-        if recipe.id == recipe_id:
-            return recipe
+def get_recipe(recipe_id: str, current_user: dict = Depends(get_current_user)):
+    recipe = get_recipe_by_id(recipe_id)
+    if recipe:
+        return recipe
     raise HTTPException(status_code=404, detail="Recipe not found")
 
 @app.get("/api/queue/{user_id}")
-def get_queue(user_id: str):
+def get_queue(user_id: str, current_user: dict = Depends(get_current_user)):
+    ensure_user_access(user_id, current_user)
     state = get_state(user_id)
     return {"queue": state["queue"], "count": len(state["queue"])}
 
 @app.post("/api/queue/{user_id}")
-def add_to_queue(user_id: str, recipe_id: str):
+def add_to_queue(
+    user_id: str,
+    recipe_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    ensure_user_access(user_id, current_user)
     state = get_state(user_id)
-    recipe = None
-    for r in RECIPES_DB:
-        if r.id == recipe_id:
-            recipe = r
-            break
+    recipe = get_recipe_by_id(recipe_id)
     if not recipe:
         raise HTTPException(status_code=404, detail="Recipe not found")
     if any(q["recipe"]["id"] == recipe_id for q in state["queue"]):
         raise HTTPException(status_code=400, detail="Already in queue")
-    item = {"id": str(uuid.uuid4()), "recipe": recipe.model_dump(), "added_at": datetime.now().isoformat()}
+    item = {"id": str(uuid.uuid4()), "recipe": recipe, "added_at": datetime.now().isoformat()}
     state["queue"].append(item)
     save_state(user_id, state)
     return {"message": "Added to queue", "item": item}
 
 @app.delete("/api/queue/{user_id}/{item_id}")
-def remove_from_queue(user_id: str, item_id: str):
+def remove_from_queue(
+    user_id: str,
+    item_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    ensure_user_access(user_id, current_user)
     state = get_state(user_id)
     state["queue"] = [q for q in state["queue"] if q["id"] != item_id]
     save_state(user_id, state)
     return {"message": "Removed from queue"}
 
 @app.post("/api/cook/{user_id}")
-def mark_cooked(user_id: str,  CookComplete):
+def mark_cooked(
+    user_id: str,
+    data: CookComplete,
+    current_user: dict = Depends(get_current_user),
+):
+    ensure_user_access(user_id, current_user)
     state = get_state(user_id)
     item = None
     for q in state["queue"]:
@@ -682,55 +842,70 @@ def mark_cooked(user_id: str,  CookComplete):
     return {"message": "Marked as cooked", "item": history_item}
 
 @app.get("/api/history/{user_id}")
-def get_history(user_id: str):
+def get_history(user_id: str, current_user: dict = Depends(get_current_user)):
+    ensure_user_access(user_id, current_user)
     state = get_state(user_id)
     return {"history": state["history"], "count": len(state["history"])}
 
 @app.delete("/api/history/{user_id}/{item_id}")
-def remove_from_history(user_id: str, item_id: str):
+def remove_from_history(
+    user_id: str,
+    item_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    ensure_user_access(user_id, current_user)
     state = get_state(user_id)
     state["history"] = [h for h in state["history"] if h["id"] != item_id]
     save_state(user_id, state)
     return {"message": "Removed from history"}
 
 @app.post("/api/swipe/{user_id}")
-def swipe(user_id: str,  SwipeAction):
+def swipe(
+    user_id: str,
+    data: SwipeAction,
+    current_user: dict = Depends(get_current_user),
+):
+    ensure_user_access(user_id, current_user)
     state = get_state(user_id)
     if data.recipe_id not in state["swiped_ids"]:
         state["swiped_ids"].append(data.recipe_id)
     if data.action == "like":
-        recipe = None
-        for r in RECIPES_DB:
-            if r.id == data.recipe_id:
-                recipe = r
-                break
+        recipe = get_recipe_by_id(data.recipe_id)
         if recipe and not any(q["recipe"]["id"] == data.recipe_id for q in state["queue"]):
-            item = {"id": str(uuid.uuid4()), "recipe": recipe.model_dump(), "added_at": datetime.now().isoformat()}
+            item = {"id": str(uuid.uuid4()), "recipe": recipe, "added_at": datetime.now().isoformat()}
             state["queue"].append(item)
     save_state(user_id, state)
     return {"message": f"Swiped {data.action}", "swiped_count": len(state["swiped_ids"])}
 
 @app.get("/api/preferences/{user_id}")
-def get_preferences(user_id: str):
+def get_preferences(user_id: str, current_user: dict = Depends(get_current_user)):
+    ensure_user_access(user_id, current_user)
     state = get_state(user_id)
     return state["preferences"]
 
 @app.put("/api/preferences/{user_id}")
-def update_preferences(user_id: str, prefs: UserPreferences):
+def update_preferences(
+    user_id: str,
+    prefs: UserPreferences,
+    current_user: dict = Depends(get_current_user),
+):
+    ensure_user_access(user_id, current_user)
     state = get_state(user_id)
     state["preferences"] = prefs.model_dump()
     save_state(user_id, state)
     return {"message": "Preferences updated", "preferences": prefs}
 
 @app.post("/api/reset/{user_id}")
-def reset_swipes(user_id: str):
+def reset_swipes(user_id: str, current_user: dict = Depends(get_current_user)):
+    ensure_user_access(user_id, current_user)
     state = get_state(user_id)
     state["swiped_ids"] = []
     save_state(user_id, state)
     return {"message": "Swipes reset"}
 
 @app.get("/api/stats/{user_id}")
-def get_stats(user_id: str):
+def get_stats(user_id: str, current_user: dict = Depends(get_current_user)):
+    ensure_user_access(user_id, current_user)
     state = get_state(user_id)
     total_meals = len(state["history"])
     total_calories = sum(h["recipe"]["calories"] for h in state["history"])
@@ -748,20 +923,19 @@ def get_stats(user_id: str):
 
 # User role endpoints
 @app.get("/api/user/role/{user_id}")
-def get_user_role(user_id: str):
-    """Get user role"""
-    if USE_SUPABASE and supabase:
-        try:
-            result = supabase.select("user_roles", filters={"user_id": user_id})
-            if result:
-                return {"role": result[0].get("role", "user")}
-            return {"role": "user"}
-        except Exception as e:
-            print(f"Error getting user role: {e}")
-    return {"role": "user"}
+def get_user_role(user_id: str, current_user: dict = Depends(get_current_user)):
+    """Get user role. Users may only query their own role; admins may query anyone."""
+    if user_id != current_user["id"]:
+        if get_role_for_user(current_user["id"]) != "admin":
+            raise HTTPException(
+                status_code=403,
+                detail="You can only query your own role",
+            )
+    return {"role": get_role_for_user(user_id)}
 
 @app.get("/api/telegram/init")
-def telegram_init(user_id: str):
+def telegram_init(user_id: str, current_user: dict = Depends(get_current_user)):
+    ensure_user_access(user_id, current_user)
     state = get_state(user_id)
     return {
         "user_id": user_id,

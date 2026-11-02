@@ -3,7 +3,10 @@
  * Синхронизирует данные между frontend и backend
  */
 
+import { supabase } from './lib/supabase';
+
 const API_URL = import.meta.env.VITE_API_URL || 'https://swypemeal.onrender.com';
+const REQUEST_TIMEOUT_MS = 60000;
 
 class ApiClient {
   private userId: string;
@@ -21,14 +24,26 @@ class ApiClient {
     return this.userId;
   }
 
+  private async getAuthHeaders(): Promise<Record<string, string>> {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token
+      ? { Authorization: `Bearer ${session.access_token}` }
+      : {};
+  }
+
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${API_URL}${endpoint}`;
-    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
     try {
+      const authHeaders = await this.getAuthHeaders();
       const response = await fetch(url, {
         ...options,
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
+          ...authHeaders,
           ...options?.headers,
         },
       });
@@ -41,6 +56,8 @@ class ApiClient {
     } catch (error) {
       console.error('API request failed:', error);
       throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -51,7 +68,7 @@ class ApiClient {
     difficulty?: string;
     excludeTags?: string[];
   }) {
-    const searchParams = new URLSearchParams({ user_id: this.userId });
+    const searchParams = new URLSearchParams();
     
     if (params?.maxCalories) searchParams.append('max_calories', params.maxCalories.toString());
     if (params?.maxCookTime) searchParams.append('max_cook_time', params.maxCookTime.toString());
@@ -165,10 +182,7 @@ class ApiClient {
       '/api/recipes/submit',
       {
         method: 'POST',
-        body: JSON.stringify({
-          ...recipe,
-          author_id: this.userId,
-        }),
+        body: JSON.stringify(recipe),
       }
     );
   }
@@ -195,10 +209,7 @@ class ApiClient {
       `/api/recipes/${recipeId}/approve`,
       {
         method: 'POST',
-        body: JSON.stringify({
-          moderator_id: this.userId,
-          comment,
-        }),
+        body: JSON.stringify({ comment }),
       }
     );
   }
@@ -208,10 +219,7 @@ class ApiClient {
       `/api/recipes/${recipeId}/reject`,
       {
         method: 'POST',
-        body: JSON.stringify({
-          moderator_id: this.userId,
-          comment,
-        }),
+        body: JSON.stringify({ comment }),
       }
     );
   }
@@ -228,11 +236,15 @@ class ApiClient {
 
   // Health check
   async healthCheck() {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
-      const response = await fetch(`${API_URL}/`);
+      const response = await fetch(`${API_URL}/`, { signal: controller.signal });
       return response.ok;
     } catch {
       return false;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 }
