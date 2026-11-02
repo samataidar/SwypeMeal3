@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Heart, List, History as HistoryIcon, Settings as SettingsIcon, UtensilsCrossed, Plus, Loader2, LogOut, User, Shield } from 'lucide-react';
+import { Heart, List, History as HistoryIcon, Settings as SettingsIcon, UtensilsCrossed, Plus, Wifi, WifiOff, RefreshCw, Loader2, LogOut, User, Shield } from 'lucide-react';
 import SwipeView from './components/SwipeView';
 import CookQueue from './components/CookQueue';
 import History from './components/History';
@@ -18,15 +18,17 @@ function App() {
   const store = useStore();
   const { user, loading, signOut, userRole } = useAuth();
 
+  // Set user ID in API client when user changes
   useEffect(() => {
     if (user) {
       api.setUserId(user.id);
     }
   }, [user]);
 
+  // Show loading screen while checking auth
   if (loading) {
     return (
-      <div className="h-screen-mobile flex items-center justify-center bg-gray-50">
+      <div className="h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <Loader2 size={48} className="animate-spin text-orange-500 mx-auto mb-4" />
           <p className="text-gray-500">Загрузка...</p>
@@ -35,12 +37,15 @@ function App() {
     );
   }
 
+  // Show login page if not authenticated
   if (!user) {
     return <LoginPage />;
   }
 
   const isAdmin = userRole === 'admin';
-
+  
+  console.log('[App] userRole:', userRole, 'isAdmin:', isAdmin);
+  
   const tabs: { id: Tab; icon: any; label: string; badge?: number }[] = [
     { id: 'swipe', icon: Heart, label: 'Свайп' },
     { id: 'queue', icon: List, label: 'Очередь', badge: store.queue.length },
@@ -50,8 +55,57 @@ function App() {
     { id: 'settings', icon: SettingsIcon, label: 'Фильтры' },
   ];
 
+  const SyncIndicator = () => {
+    if (!store.syncEnabled) {
+      return (
+        <button
+          onClick={store.toggleSync}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 text-gray-500 text-xs hover:bg-gray-200 transition-colors"
+          title="Синхронизация отключена. Нажмите для включения."
+        >
+          <WifiOff size={12} />
+          <span className="hidden sm:inline">Локально</span>
+        </button>
+      );
+    }
+
+    if (store.syncStatus === 'syncing') {
+      return (
+        <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 text-blue-600 text-xs">
+          <Loader2 size={12} className="animate-spin" />
+          <span className="hidden sm:inline">Синхронизация...</span>
+        </div>
+      );
+    }
+
+    if (store.syncStatus === 'error' || store.backendAvailable === false) {
+      return (
+        <button
+          onClick={store.manualSync}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 text-amber-600 text-xs hover:bg-amber-100 transition-colors"
+          title="Ошибка синхронизации. Нажмите для повтора."
+        >
+          <WifiOff size={12} />
+          <span className="hidden sm:inline">Оффлайн</span>
+        </button>
+      );
+    }
+
+    return (
+      <button
+        onClick={store.manualSync}
+        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-green-50 text-green-600 text-xs hover:bg-green-100 transition-colors"
+        title={`Синхронизировано. Нажмите для обновления.`}
+      >
+        <Wifi size={12} />
+        <span className="hidden sm:inline">Онлайн</span>
+      </button>
+    );
+  };
+
   return (
     <div className="h-screen-mobile flex flex-col bg-gray-50 max-w-lg mx-auto relative overflow-hidden">
+      {/* Header */}
       <header className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-red-500 rounded-lg flex items-center justify-center">
@@ -60,12 +114,18 @@ function App() {
           <h1 className="text-lg font-bold text-gray-900">SwypeMeal</h1>
         </div>
         <div className="flex items-center gap-2">
+          <SyncIndicator />
           <div className="text-xs text-gray-400">
             {store.availableRecipes.length} рецептов
           </div>
+          {/* User menu */}
           <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-200">
             {user.user_metadata?.avatar_url ? (
-              <img src={user.user_metadata.avatar_url} alt="Avatar" className="w-8 h-8 rounded-full" />
+              <img 
+                src={user.user_metadata.avatar_url} 
+                alt="Avatar" 
+                className="w-8 h-8 rounded-full"
+              />
             ) : (
               <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
                 <User size={16} className="text-orange-600" />
@@ -82,6 +142,7 @@ function App() {
         </div>
       </header>
 
+      {/* Content */}
       <main className="flex-1 overflow-hidden">
         {activeTab === 'swipe' && (
           <SwipeView
@@ -106,17 +167,34 @@ function App() {
           />
         )}
         {activeTab === 'history' && (
-          <History history={store.history} onRemove={store.removeFromHistory} />
+          <History
+            history={store.history}
+            onRemove={store.removeFromHistory}
+          />
         )}
         {activeTab === 'add' && (
-          <AddRecipe onSubmit={store.submitRecipe} pendingCount={0} />
+          <AddRecipe
+            onSubmit={store.submitRecipe}
+            pendingCount={0}
+          />
         )}
-        {activeTab === 'admin' && isAdmin && <AdminPanel />}
+        {activeTab === 'admin' && isAdmin && (
+          <AdminPanel />
+        )}
         {activeTab === 'settings' && (
-          <Settings preferences={store.preferences} onChange={store.setPreferences} />
+          <Settings
+            preferences={store.preferences}
+            onChange={store.setPreferences}
+            syncEnabled={store.syncEnabled}
+            onToggleSync={store.toggleSync}
+            backendAvailable={store.backendAvailable}
+            lastSync={store.lastSync}
+            onManualSync={store.manualSync}
+          />
         )}
       </main>
 
+      {/* Bottom Navigation */}
       <nav className="bg-white border-t border-gray-100 px-2 pt-2 flex-shrink-0 safe-bottom">
         <div className="flex items-center justify-around">
           {tabs.map((tab) => {
@@ -127,7 +205,9 @@ function App() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all ${
-                  isActive ? 'text-orange-600 bg-orange-50' : 'text-gray-400 hover:text-gray-600'
+                  isActive
+                    ? 'text-orange-600 bg-orange-50'
+                    : 'text-gray-400 hover:text-gray-600'
                 }`}
               >
                 <div className="relative">
