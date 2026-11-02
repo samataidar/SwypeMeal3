@@ -35,7 +35,7 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
     }
 
     // Если изображение не загружено, используем дефолтное
-    const imageUrl = form.image.trim() || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&h=600&fit=crop';
+    const imageUrl = form.image.trim() || '/images/carbonara.jpg';
 
     const recipe = {
       title: form.title.trim(),

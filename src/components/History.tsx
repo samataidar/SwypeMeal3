@@ -1,5 +1,6 @@
 import { HistoryItem } from '../types';
 import { Clock, Flame, Star, Trash2, Calendar } from 'lucide-react';
+import SafeImage from './SafeImage';
 
 interface HistoryProps {
   history: HistoryItem[];
@@ -66,8 +67,9 @@ export default function History({ history, onRemove }: HistoryProps) {
           >
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0 w-12 h-12 bg-green-50 rounded-xl overflow-hidden">
-                <img 
-                  src={item.recipe.image} 
+                <SafeImage
+                  src={item.recipe.image}
+                  recipeId={item.recipe.id}
                   alt={item.recipe.title}
                   className="w-full h-full object-cover"
                 />
