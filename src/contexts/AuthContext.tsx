@@ -21,20 +21,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userRole, setUserRole] = useState<'user' | 'admin' | null>(null);
 
   useEffect(() => {
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
       
-      // Load user role if authenticated
       if (session?.user) {
         api.setUserId(session.user.id);
         loadUserRole(session.user.id);
       }
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -53,59 +50,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadUserRole = async (userId: string) => {
     try {
-      console.log('[AuthContext] Loading user role for:', userId);
       const result = await api.getUserRole();
-      console.log('[AuthContext] User role result:', result);
       setUserRole(result.role as 'user' | 'admin');
-      console.log('[AuthContext] User role set to:', result.role);
     } catch (error) {
-      console.error('[AuthContext] Error loading user role:', error);
-      setUserRole('user'); // Default to user role
+      console.error('Error loading user role:', error);
+      setUserRole('user');
     }
   };
 
   const signInWithGoogle = async () => {
-    // Используем production URL для OAuth redirect
     const redirectTo = import.meta.env.VITE_SITE_URL 
       || (import.meta.env.PROD ? 'https://swype-meal3.vercel.app' : window.location.origin);
     
-    const { error } = await supabase.auth.signInWithOAuth({
+    await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        redirectTo,
-      },
+      options: { redirectTo },
     });
-    if (error) {
-      console.error('Error signing in with Google:', error);
-      throw error;
-    }
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('Error signing out:', error);
-      throw error;
-    }
+    await supabase.auth.signOut();
     setUserRole(null);
   };
 
-  const value = {
-    user,
-    session,
-    loading,
-    userRole,
-    signInWithGoogle,
-    signOut,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, session, loading, userRole, signInWithGoogle, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 }

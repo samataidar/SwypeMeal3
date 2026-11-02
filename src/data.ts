@@ -1,11 +1,12 @@
 import { Recipe } from './types';
 
+// Используем изображения из Wikimedia Commons (надежный источник)
 export const recipes: Recipe[] = [
   {
     id: '1',
     title: 'Паста Карбонара',
-    description: 'Классическая итальянская паста с беконом, яйцом и пармезаном. Быстро, сытно и невероятно вкусно.',
-    image: 'https://images.unsplash.com/photo-1612874742237-6526221588e3?w=800&h=600&fit=crop',
+    description: 'Классическая итальянская паста с беконом, яйцом и пармезаном.',
+    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Spaghetti_alla_Carbonara.jpg/800px-Spaghetti_alla_Carbonara.jpg',
     cookTime: 25,
     servings: 2,
     calories: 520,
@@ -13,108 +14,71 @@ export const recipes: Recipe[] = [
     fat: 24,
     carbs: 55,
     ingredients: ['Спагетти 200г', 'Бекон 150г', 'Яйца 3шт', 'Пармезан 80г', 'Чёрный перец', 'Соль'],
-    steps: [
-      'Вскипятите воду, посолите, отварите пасту до al dente',
-      'Нарежьте бекон кубиками, обжарьте до хрустящей корочки',
-      'Смешайте яйца с тёртым пармезаном и перцем',
-      'Слейте пасту, оставив стакан воды',
-      'Добавьте пасту к бекону, снимите с огня',
-      'Влейте яичную смесь, быстро перемешайте',
-      'Подавайте с дополнительным пармезаном'
-    ],
+    steps: ['Отварите пасту', 'Обжарьте бекон', 'Смешайте яйца с пармезаном', 'Соедините всё вместе'],
     tags: ['итальянская', 'паста', 'быстрая'],
     difficulty: 'easy'
   },
   {
     id: '2',
     title: 'Том Ям с креветками',
-    description: 'Острый тайский суп с креветками, грибами и кокосовым молоком. Ароматный и согревающий.',
-    image: 'https://images.unsplash.com/photo-1548943487-a2e4e43b4853?w=800&h=600&fit=crop',
+    description: 'Острый тайский суп с креветками и кокосовым молоком.',
+    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Tom_yam_kung_maenam_khlong.jpg/800px-Tom_yam_kung_maenam_khlong.jpg',
     cookTime: 35,
     servings: 4,
     calories: 280,
     protein: 18,
     fat: 12,
     carbs: 22,
-    ingredients: ['Креветки 400г', 'Кокосовое молоко 400мл', 'Грибы 200г', 'Лемонграсс 2 стебля', 'Галангал 30г', 'Лайм 2шт', 'Перец чили 2шт', 'Рыбный соус 3 ст.л.', 'Кинза'],
-    steps: [
-      'Вскипятите 1л воды с лемонграссом и галангалом',
-      'Добавьте грибы, варите 5 минут',
-      'Положите креветки, варите 3 минуты',
-      'Влейте кокосовое молоко',
-      'Добавьте рыбный соус, сок лайма и чили',
-      'Подавайте с кинзой и рисом'
-    ],
+    ingredients: ['Креветки 400г', 'Кокосовое молоко 400мл', 'Грибы 200г', 'Лемонграсс', 'Галангал', 'Лайм', 'Чили'],
+    steps: ['Вскипятите бульон с лемонграссом', 'Добавьте грибы', 'Положите креветки', 'Приправьте'],
     tags: ['тайская', 'суп', 'острая', 'морепродукты'],
     difficulty: 'medium'
   },
   {
     id: '3',
     title: 'Боул с курицей и авокадо',
-    description: 'Полезный боул с grilled курицей, авокадо, киноа и соусом тахини. Идеальный обед.',
-    image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=600&fit=crop',
+    description: 'Полезный боул с курицей, авокадо, киноа и соусом тахини.',
+    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Buddha_Bowl_%2842209587810%29.jpg/800px-Buddha_Bowl_%2842209587810%29.jpg',
     cookTime: 30,
     servings: 2,
     calories: 450,
     protein: 35,
     fat: 20,
     carbs: 38,
-    ingredients: ['Куриная грудка 300г', 'Киноа 150г', 'Авокадо 1шт', 'Огурец 1шт', 'Помидоры черри 200г', 'Тахини 2 ст.л.', 'Лимон', 'Оливковое масло'],
-    steps: [
-      'Отварите киноа согласно инструкции',
-      'Замаринуйте курицу в специях, обжарьте до готовности',
-      'Нарежьте авокадо, огурец и помидоры',
-      'Приготовьте соус: тахини + лимонный сок + вода',
-      'Соберите боул: киноа, овощи, курица, авокадо',
-      'Полейте соусом тахини'
-    ],
+    ingredients: ['Куриная грудка 300г', 'Киноа 150г', 'Авокадо 1шт', 'Огурец', 'Помидоры черри', 'Тахини'],
+    steps: ['Отварите киноа', 'Обжарьте курицу', 'Нарежьте овощи', 'Соберите боул'],
     tags: ['здоровая', 'боул', 'высокобелковая'],
     difficulty: 'easy'
   },
   {
     id: '4',
     title: 'Ризотто с грибами',
-    description: 'Кремовое ризотто с белыми грибами и пармезаном. Изысканное блюдо для особого ужина.',
-    image: 'https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=800&h=600&fit=crop',
+    description: 'Кремовое ризотто с белыми грибами и пармезаном.',
+    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Risotto_with_speck_and_goat_cheese.jpg/800px-Risotto_with_speck_and_goat_cheese.jpg',
     cookTime: 45,
     servings: 3,
     calories: 480,
     protein: 14,
     fat: 22,
     carbs: 56,
-    ingredients: ['Рис арборио 300г', 'Белые грибы 300г', 'Лук 1шт', 'Чеснок 3 зубчика', 'Белое вино 150мл', 'Бульон 1л', 'Пармезан 100г', 'Сливочное масло 50г'],
-    steps: [
-      'Обжарьте грибы до золотистости, отложите',
-      'В той же сковороде обжарьте лук и чеснок',
-      'Добавьте рис, обжаривайте 2 минуты',
-      'Влейте вино, дождитесь впитывания',
-      'Добавляйте бульон по половнику, постоянно помешивая',
-      'За 5 минут до готовности добавьте грибы',
-      'Снимите с огня, вмешайте масло и пармезан'
-    ],
+    ingredients: ['Рис арборио 300г', 'Белые грибы 300г', 'Лук', 'Белое вино', 'Бульон', 'Пармезан'],
+    steps: ['Обжарьте грибы', 'Обжарьте рис', 'Добавляйте бульон', 'Вмешайте пармезан'],
     tags: ['итальянская', 'рис', 'вегетарианская'],
     difficulty: 'hard'
   },
   {
     id: '5',
     title: 'Тако с говядиной',
-    description: 'Мексиканские тако с пряной говядиной, свежими овощами и гуакамоле.',
-    image: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=800&h=600&fit=crop',
+    description: 'Мексиканские тако с пряной говядиной и гуакамоле.',
+    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Taco_with_beef.jpg/800px-Taco_with_beef.jpg',
     cookTime: 30,
     servings: 4,
     calories: 380,
     protein: 28,
     fat: 18,
     carbs: 28,
-    ingredients: ['Говяжий фарш 500г', 'Тортильи 8шт', 'Авокадо 2шт', 'Помидоры 3шт', 'Лук 1шт', 'Кинза', 'Лайм 2шт', 'Кумин', 'Паприка', 'Чили'],
-    steps: [
-      'Обжарьте фарш с кумином, паприкой и чили',
-      'Приготовьте гуакамоле: авокадо + лайм + кинза',
-      'Нарежьте помидоры и лук',
-      'Подогрейте тортильи',
-      'Соберите тако: мясо, овощи, гуакамоле',
-      'Подавайте с дольками лайма'
-    ],
+    ingredients: ['Говяжий фарш 500г', 'Тортильи 8шт', 'Авокадо 2шт', 'Помидоры', 'Лук', 'Кинза'],
+    steps: ['Обжарьте фарш со специями', 'Приготовьте гуакамоле', 'Нарежьте овощи', 'Соберите тако'],
     tags: ['мексиканская', 'мясо', 'быстрая'],
     difficulty: 'easy'
   },
@@ -122,7 +86,7 @@ export const recipes: Recipe[] = [
     id: '6',
     title: 'Лосось терияки',
     description: 'Глазированный лосось в соусе терияки с рисом.',
-    image: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=800&h=600&fit=crop',
+    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Teriyaki_salmon.jpg/800px-Teriyaki_salmon.jpg',
     cookTime: 30,
     servings: 2,
     calories: 520,
@@ -130,12 +94,7 @@ export const recipes: Recipe[] = [
     fat: 22,
     carbs: 42,
     ingredients: ['Филе лосося 2шт', 'Рис 200г', 'Брокколи 300г', 'Соевый соус', 'Мёд', 'Имбирь'],
-    steps: [
-      'Отварите рис',
-      'Замаринуйте лосось',
-      'Обжарьте лосось',
-      'Подавайте с овощами'
-    ],
+    steps: ['Отварите рис', 'Замаринуйте лосось', 'Обжарьте лосось', 'Подавайте с овощами'],
     tags: ['японская', 'рыба', 'здоровая'],
     difficulty: 'medium'
   },
@@ -143,7 +102,7 @@ export const recipes: Recipe[] = [
     id: '7',
     title: 'Шаурма домашняя',
     description: 'Сочная домашняя шаурма с маринованной курицей.',
-    image: 'https://images.unsplash.com/photo-1529006557810-274b9b2fc783?w=800&h=600&fit=crop',
+    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Doner_kebab.jpg/800px-Doner_kebab.jpg',
     cookTime: 40,
     servings: 3,
     calories: 580,
@@ -151,12 +110,7 @@ export const recipes: Recipe[] = [
     fat: 28,
     carbs: 48,
     ingredients: ['Куриное бедро 500г', 'Лаваш 3шт', 'Помидоры 2шт', 'Огурцы 2шт', 'Капуста 200г', 'Йогурт 200г', 'Чеснок'],
-    steps: [
-      'Замаринуйте курицу',
-      'Обжарьте курицу',
-      'Нарежьте овощи',
-      'Заверните в лаваш'
-    ],
+    steps: ['Замаринуйте курицу', 'Обжарьте курицу', 'Нарежьте овощи', 'Заверните в лаваш'],
     tags: ['восточная', 'мясо', 'быстрая'],
     difficulty: 'easy'
   },
@@ -164,7 +118,7 @@ export const recipes: Recipe[] = [
     id: '8',
     title: 'Тирамису',
     description: 'Нежный итальянский десерт с маскарпоне и кофе.',
-    image: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=800&h=600&fit=crop',
+    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Tiramisu_Francesco_Sposito.jpg/800px-Tiramisu_Francesco_Sposito.jpg',
     cookTime: 40,
     servings: 6,
     calories: 420,
@@ -172,12 +126,7 @@ export const recipes: Recipe[] = [
     fat: 28,
     carbs: 36,
     ingredients: ['Маскарпоне 500г', 'Яйца 4шт', 'Савоярди 200г', 'Эспрессо 300мл', 'Сахар 100г', 'Какао'],
-    steps: [
-      'Сварите кофе',
-      'Приготовьте крем',
-      'Соберите слои',
-      'Охладите 4 часа'
-    ],
+    steps: ['Сварите кофе', 'Приготовьте крем', 'Соберите слои', 'Охладите 4 часа'],
     tags: ['десерт', 'итальянская', 'без выпечки'],
     difficulty: 'medium'
   },
@@ -185,7 +134,7 @@ export const recipes: Recipe[] = [
     id: '9',
     title: 'Том Кха Гай',
     description: 'Кокосовый суп с курицей по-тайски.',
-    image: 'https://images.unsplash.com/photo-1547592180-85f173990554?w=800&h=600&fit=crop',
+    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Tom_kha_gai.jpg/800px-Tom_kha_gai.jpg',
     cookTime: 35,
     servings: 4,
     calories: 320,
@@ -193,12 +142,7 @@ export const recipes: Recipe[] = [
     fat: 18,
     carbs: 16,
     ingredients: ['Куриное филе 400г', 'Кокосовое молоко 600мл', 'Галангал 40г', 'Лемонграсс', 'Грибы 200г', 'Лайм 3шт'],
-    steps: [
-      'Вскипятите кокосовое молоко',
-      'Добавьте курицу',
-      'Добавьте грибы и специи',
-      'Подавайте'
-    ],
+    steps: ['Вскипятите кокосовое молоко', 'Добавьте курицу', 'Добавьте грибы и специи', 'Подавайте'],
     tags: ['тайская', 'суп', 'курица'],
     difficulty: 'medium'
   },
@@ -206,7 +150,7 @@ export const recipes: Recipe[] = [
     id: '10',
     title: 'Панкейки с ягодами',
     description: 'Пышные американские панкейки со свежими ягодами.',
-    image: 'https://images.unsplash.com/photo-1528207776546-365bb710ee93?w=800&h=600&fit=crop',
+    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Pancakes_with_blueberries.jpg/800px-Pancakes_with_blueberries.jpg',
     cookTime: 20,
     servings: 3,
     calories: 380,
@@ -214,12 +158,7 @@ export const recipes: Recipe[] = [
     fat: 14,
     carbs: 54,
     ingredients: ['Мука 250г', 'Молоко 300мл', 'Яйца 2шт', 'Сахар 3 ст.л.', 'Разрыхлитель', 'Ягоды 200г'],
-    steps: [
-      'Смешайте сухие ингредиенты',
-      'Добавьте жидкие',
-      'Жарьте на сковороде',
-      'Подавайте с ягодами'
-    ],
+    steps: ['Смешайте сухие ингредиенты', 'Добавьте жидкие', 'Жарьте на сковороде', 'Подавайте с ягодами'],
     tags: ['завтрак', 'десерт', 'быстрая'],
     difficulty: 'easy'
   },
@@ -227,7 +166,7 @@ export const recipes: Recipe[] = [
     id: '11',
     title: 'Карри с нутом',
     description: 'Ароматное индийское карри с нутом.',
-    image: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800&h=600&fit=crop',
+    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Chickpea_curry.jpg/800px-Chickpea_curry.jpg',
     cookTime: 35,
     servings: 4,
     calories: 340,
@@ -235,12 +174,7 @@ export const recipes: Recipe[] = [
     fat: 14,
     carbs: 38,
     ingredients: ['Нут 400г', 'Томаты 400г', 'Кокосовое молоко 200мл', 'Лук 2шт', 'Специи', 'Шпинат 200г'],
-    steps: [
-      'Обжарьте лук и специи',
-      'Добавьте томаты',
-      'Добавьте нут',
-      'Тушите 15 минут'
-    ],
+    steps: ['Обжарьте лук и специи', 'Добавьте томаты', 'Добавьте нут', 'Тушите 15 минут'],
     tags: ['индийская', 'веганская', 'бобовые'],
     difficulty: 'easy'
   },
@@ -248,7 +182,7 @@ export const recipes: Recipe[] = [
     id: '12',
     title: 'Стейк рибай',
     description: 'Идеально прожаренный стейк рибай с овощами гриль.',
-    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=800&h=600&fit=crop',
+    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/58/Grilled_Rib_Eye_Steak.jpg/800px-Grilled_Rib_Eye_Steak.jpg',
     cookTime: 25,
     servings: 2,
     calories: 650,
@@ -256,12 +190,7 @@ export const recipes: Recipe[] = [
     fat: 42,
     carbs: 12,
     ingredients: ['Рибай стейк 2шт', 'Перец болгарский 2шт', 'Цукини 2шт', 'Оливковое масло', 'Чеснок', 'Зелень'],
-    steps: [
-      'Подготовьте стейк',
-      'Обжарьте стейк',
-      'Приготовьте овощи',
-      'Подавайте'
-    ],
+    steps: ['Подготовьте стейк', 'Обжарьте стейк', 'Приготовьте овощи', 'Подавайте'],
     tags: ['мясо', 'гриль', 'высокобелковая'],
     difficulty: 'hard'
   }

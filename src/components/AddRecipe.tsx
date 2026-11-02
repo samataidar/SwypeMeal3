@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Recipe } from '../types';
-import { Plus, Send, CheckCircle, AlertCircle } from 'lucide-react';
+import { Plus, Send, CheckCircle } from 'lucide-react';
 import { api } from '../api';
 import ImageUpload from './ImageUpload';
 
@@ -9,7 +9,7 @@ interface AddRecipeProps {
   pendingCount: number;
 }
 
-export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
+export default function AddRecipe({ onSubmit }: AddRecipeProps) {
   const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState({
     title: '',
@@ -30,12 +30,9 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!form.title.trim() || !form.description.trim()) {
-      return;
-    }
+    if (!form.title.trim() || !form.description.trim()) return;
 
-    // Если изображение не загружено, используем дефолтное
-    const imageUrl = form.image.trim() || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&h=600&fit=crop';
+    const imageUrl = form.image.trim() || 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Good_Food_Display_-_NCI_Visuals_Online.jpg/800px-Good_Food_Display_-_NCI_Visuals_Online.jpg';
 
     const recipe = {
       title: form.title.trim(),
@@ -48,7 +45,7 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
       fat: Number(form.fat),
       carbs: Number(form.carbs),
       ingredients: form.ingredients.split('\n').map(s => s.trim()).filter(Boolean),
-      steps: form.steps.split('\n').map((s, i) => s.trim()).filter(Boolean),
+      steps: form.steps.split('\n').map(s => s.trim()).filter(Boolean),
       tags: form.tags.split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
       difficulty: form.difficulty,
     };
@@ -57,7 +54,6 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
       await api.submitRecipe(recipe);
       setSubmitted(true);
 
-      // Reset form
       setForm({
         title: '',
         description: '',
@@ -102,17 +98,7 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
         Добавьте свой рецепт. После проверки модераторами он появится в общем каталоге.
       </p>
 
-      {pendingCount > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex items-center gap-2">
-          <AlertCircle size={16} className="text-amber-600 flex-shrink-0" />
-          <span className="text-sm text-amber-700">
-            У вас {pendingCount} рецепт(ов) на модерации
-          </span>
-        </div>
-      )}
-
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Title */}
         <div>
           <label className="text-sm font-medium text-gray-700 mb-1 block">Название *</label>
           <input
@@ -125,7 +111,6 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
           />
         </div>
 
-        {/* Description */}
         <div>
           <label className="text-sm font-medium text-gray-700 mb-1 block">Описание *</label>
           <textarea
@@ -137,7 +122,6 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
           />
         </div>
 
-        {/* Image Upload */}
         <div>
           <ImageUpload
             value={form.image}
@@ -145,7 +129,6 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
           />
         </div>
 
-        {/* Time, Servings */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1 block">Время (мин)</label>
@@ -171,7 +154,6 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
           </div>
         </div>
 
-        {/* Difficulty */}
         <div>
           <label className="text-sm font-medium text-gray-700 mb-2 block">Сложность</label>
           <div className="flex gap-2">
@@ -192,7 +174,6 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
           </div>
         </div>
 
-        {/* Macros */}
         <div>
           <label className="text-sm font-medium text-gray-700 mb-2 block">КБЖУ</label>
           <div className="grid grid-cols-4 gap-2">
@@ -239,7 +220,6 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
           </div>
         </div>
 
-        {/* Ingredients */}
         <div>
           <label className="text-sm font-medium text-gray-700 mb-1 block">
             Ингредиенты <span className="text-gray-400 font-normal">(каждый с новой строки)</span>
@@ -252,7 +232,6 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
           />
         </div>
 
-        {/* Steps */}
         <div>
           <label className="text-sm font-medium text-gray-700 mb-1 block">
             Шаги приготовления <span className="text-gray-400 font-normal">(каждый с новой строки)</span>
@@ -265,7 +244,6 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
           />
         </div>
 
-        {/* Tags */}
         <div>
           <label className="text-sm font-medium text-gray-700 mb-1 block">
             Теги <span className="text-gray-400 font-normal">(через запятую)</span>
@@ -279,7 +257,6 @@ export default function AddRecipe({ onSubmit, pendingCount }: AddRecipeProps) {
           />
         </div>
 
-        {/* Submit */}
         <button
           type="submit"
           className="w-full py-3 bg-orange-500 text-white rounded-2xl font-medium hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"

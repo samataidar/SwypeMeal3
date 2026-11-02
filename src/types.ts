@@ -2,8 +2,8 @@ export interface Recipe {
   id: string;
   title: string;
   description: string;
-  image: string; // URL to image
-  cookTime: number; // minutes
+  image: string;
+  cookTime: number;
   servings: number;
   calories: number;
   protein: number;
@@ -19,7 +19,6 @@ export interface QueueItem {
   id: string;
   recipe: Recipe;
   addedAt: string;
-  plannedDate?: string;
 }
 
 export interface HistoryItem {
