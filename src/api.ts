@@ -1,10 +1,20 @@
+/**
+ * API клиент для SwypeMeal Backend
+ * Синхронизирует данные между frontend и backend
+ */
+
 const API_URL = import.meta.env.VITE_API_URL || 'https://swypemeal.onrender.com';
 
 class ApiClient {
-  private userId: string = '';
+  private userId: string;
+
+  constructor() {
+    this.userId = localStorage.getItem('swypemeal_user_id') || '';
+  }
 
   setUserId(userId: string) {
     this.userId = userId;
+    localStorage.setItem('swypemeal_user_id', userId);
   }
 
   getUserId(): string {
@@ -13,21 +23,28 @@ class ApiClient {
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${API_URL}${endpoint}`;
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
-    });
+    
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options?.headers,
+        },
+      });
 
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('API request failed:', error);
+      throw error;
     }
-
-    return response.json();
   }
 
+  // Recipes
   async getRecipes(params?: {
     maxCalories?: number;
     maxCookTime?: number;
@@ -35,92 +52,181 @@ class ApiClient {
     excludeTags?: string[];
   }) {
     const searchParams = new URLSearchParams({ user_id: this.userId });
+    
     if (params?.maxCalories) searchParams.append('max_calories', params.maxCalories.toString());
     if (params?.maxCookTime) searchParams.append('max_cook_time', params.maxCookTime.toString());
     if (params?.difficulty) searchParams.append('difficulty', params.difficulty);
     if (params?.excludeTags?.length) searchParams.append('exclude_tags', params.excludeTags.join(','));
 
-    return this.request<any>(`/api/recipes?${searchParams.toString()}`);
+    return this.request<{ recipes: any[]; count: number }>(
+      `/api/recipes?${searchParams.toString()}`
+    );
   }
 
+  async getRecipe(recipeId: string) {
+    return this.request<any>(`/api/recipes/${recipeId}`);
+  }
+
+  // Queue
   async getQueue() {
-    return this.request<any>(`/api/queue/${this.userId}`);
+    return this.request<{ queue: any[]; count: number }>(`/api/queue/${this.userId}`);
   }
 
   async addToQueue(recipeId: string) {
-    return this.request<any>(`/api/queue/${this.userId}?recipe_id=${recipeId}`, { method: 'POST' });
+    return this.request<{ message: string; item: any }>(
+      `/api/queue/${this.userId}?recipe_id=${recipeId}`,
+      { method: 'POST' }
+    );
   }
 
   async removeFromQueue(itemId: string) {
-    return this.request<any>(`/api/queue/${this.userId}/${itemId}`, { method: 'DELETE' });
+    return this.request<{ message: string }>(
+      `/api/queue/${this.userId}/${itemId}`,
+      { method: 'DELETE' }
+    );
   }
 
+  // Cook
   async markCooked(queueItemId: string, rating?: number, notes?: string) {
-    return this.request<any>(`/api/cook/${this.userId}`, {
-      method: 'POST',
-      body: JSON.stringify({ queue_item_id: queueItemId, rating, notes }),
-    });
+    return this.request<{ message: string; item: any }>(
+      `/api/cook/${this.userId}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          queue_item_id: queueItemId,
+          rating,
+          notes,
+        }),
+      }
+    );
   }
 
+  // History
   async getHistory() {
-    return this.request<any>(`/api/history/${this.userId}`);
+    return this.request<{ history: any[]; count: number }>(`/api/history/${this.userId}`);
   }
 
   async removeFromHistory(itemId: string) {
-    return this.request<any>(`/api/history/${this.userId}/${itemId}`, { method: 'DELETE' });
+    return this.request<{ message: string }>(
+      `/api/history/${this.userId}/${itemId}`,
+      { method: 'DELETE' }
+    );
   }
 
+  // Swipe
   async swipe(recipeId: string, action: 'like' | 'dislike') {
-    return this.request<any>(`/api/swipe/${this.userId}`, {
-      method: 'POST',
-      body: JSON.stringify({ recipe_id: recipeId, action }),
-    });
+    return this.request<{ message: string; swiped_count: number }>(
+      `/api/swipe/${this.userId}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ recipe_id: recipeId, action }),
+      }
+    );
   }
 
+  // Preferences
   async getPreferences() {
     return this.request<any>(`/api/preferences/${this.userId}`);
   }
 
   async updatePreferences(preferences: any) {
-    return this.request<any>(`/api/preferences/${this.userId}`, {
-      method: 'PUT',
-      body: JSON.stringify(preferences),
-    });
+    return this.request<{ message: string; preferences: any }>(
+      `/api/preferences/${this.userId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(preferences),
+      }
+    );
   }
 
+  // Reset
   async resetSwipes() {
-    return this.request<any>(`/api/reset/${this.userId}`, { method: 'POST' });
+    return this.request<{ message: string }>(
+      `/api/reset/${this.userId}`,
+      { method: 'POST' }
+    );
   }
 
+  // Stats
+  async getStats() {
+    return this.request<{
+      total_meals: number;
+      total_calories: number;
+      total_cook_time: number;
+      average_rating: number;
+      queue_size: number;
+      swiped_count: number;
+    }>(`/api/stats/${this.userId}`);
+  }
+
+  // Custom Recipes
+  async submitRecipe(recipe: any) {
+    return this.request<{ message: string; recipe_id: string }>(
+      '/api/recipes/submit',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          ...recipe,
+          author_id: this.userId,
+        }),
+      }
+    );
+  }
+
+  async getCustomRecipes() {
+    return this.request<{ recipes: any[]; count: number }>('/api/recipes/custom');
+  }
+
+  // User role
   async getUserRole() {
-    return this.request<any>(`/api/user/role/${this.userId}`);
+    return this.request<{ role: string }>(`/api/user/role/${this.userId}`);
   }
 
+  // Admin - Pending recipes
   async getPendingRecipes() {
-    return this.request<any>('/api/recipes/pending');
+    console.log('[API] getPendingRecipes called');
+    const result = await this.request<{ recipes: any[]; count: number }>('/api/recipes/pending');
+    console.log('[API] getPendingRecipes result:', result);
+    return result;
   }
 
   async approveRecipe(recipeId: string, comment?: string) {
-    return this.request<any>(`/api/recipes/${recipeId}/approve`, {
-      method: 'POST',
-      body: JSON.stringify({ moderator_id: this.userId, comment }),
-    });
+    return this.request<{ message: string }>(
+      `/api/recipes/${recipeId}/approve`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          moderator_id: this.userId,
+          comment,
+        }),
+      }
+    );
   }
 
   async rejectRecipe(recipeId: string, comment?: string) {
-    return this.request<any>(`/api/recipes/${recipeId}/reject`, {
-      method: 'POST',
-      body: JSON.stringify({ moderator_id: this.userId, comment }),
-    });
+    return this.request<{ message: string }>(
+      `/api/recipes/${recipeId}/reject`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          moderator_id: this.userId,
+          comment,
+        }),
+      }
+    );
   }
 
-  async submitRecipe(recipe: any) {
-    return this.request<any>('/api/recipes/submit', {
-      method: 'POST',
-      body: JSON.stringify({ ...recipe, author_id: this.userId }),
-    });
+  // Telegram
+  async telegramInit() {
+    return this.request<{
+      user_id: string;
+      queue_count: number;
+      history_count: number;
+      available_recipes: number;
+    }>(`/api/telegram/init?user_id=${this.userId}`);
   }
 
+  // Health check
   async healthCheck() {
     try {
       const response = await fetch(`${API_URL}/`);
@@ -131,4 +237,8 @@ class ApiClient {
   }
 }
 
+// Singleton instance
 export const api = new ApiClient();
+
+// Export class for testing
+export { ApiClient };
