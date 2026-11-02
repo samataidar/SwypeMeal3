@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Heart, List, History as HistoryIcon, Settings as SettingsIcon, UtensilsCrossed, Plus, Wifi, WifiOff, RefreshCw, Loader2, LogOut, User, Shield } from 'lucide-react';
 import SwipeView from './components/SwipeView';
 import CookQueue from './components/CookQueue';
@@ -18,12 +18,24 @@ function App() {
   const store = useStore();
   const { user, loading, signOut, userRole } = useAuth();
 
-  // Set user ID in API client when user changes
+  // Set user ID in API client and pull fresh data after login.
+  // The store itself is mounted before auth resolves, so its initial sync may
+  // run without a token. Re-sync once the authenticated user is known.
+  const syncedUserRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (user) {
-      api.setUserId(user.id);
+    if (!user) {
+      syncedUserRef.current = null;
+      return;
     }
-  }, [user]);
+
+    api.setUserId(user.id);
+
+    if (syncedUserRef.current !== user.id) {
+      syncedUserRef.current = user.id;
+      store.syncFromBackend();
+    }
+  }, [user, store.syncFromBackend]);
 
   // Show loading screen while checking auth
   if (loading) {
@@ -147,12 +159,14 @@ function App() {
         {activeTab === 'swipe' && (
           <SwipeView
             recipes={store.availableRecipes}
-            onLike={(recipe) => {
-              store.addToQueue(recipe);
-              store.markSwiped(recipe.id);
+            onLike={async (recipe) => {
+              // Add first, then record the swipe. This avoids two concurrent
+              // writes racing on the same queue state.
+              await store.addToQueue(recipe);
+              store.markSwiped(recipe.id, 'like');
             }}
             onDislike={(recipe) => {
-              store.markSwiped(recipe.id);
+              store.markSwiped(recipe.id, 'dislike');
             }}
             onReset={store.resetSwiped}
           />

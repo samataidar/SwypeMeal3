@@ -31,8 +31,8 @@ uvicorn main:app --reload --port 8000
 | GET | `/api/recipes/{id}` | Детали рецепта |
 | POST | `/api/recipes/submit` | Отправить рецепт на модерацию |
 | GET | `/api/recipes/pending` | Рецепты на модерации |
-| POST | `/api/recipes/approve/{id}` | Одобрить рецепт |
-| DELETE | `/api/recipes/pending/{id}` | Отклонить рецепт |
+| POST | `/api/recipes/{id}/approve` | Одобрить рецепт (admin) |
+| POST | `/api/recipes/{id}/reject` | Отклонить рецепт (admin) |
 | GET | `/api/recipes/custom` | Одобренные пользовательские рецепты |
 | GET | `/api/queue/{user_id}` | Очередь готовки |
 | POST | `/api/queue/{user_id}` | Добавить в очередь |
@@ -79,7 +79,30 @@ Instance Type: Free
 В разделе **"Environment"** добавьте:
 ```
 PYTHON_VERSION=3.12.7
+SUPABASE_URL=https://bbelyefgpptozjfmeyqq.supabase.co
+SUPABASE_KEY=<service_role_key>
+USE_SUPABASE=true
+CORS_ORIGINS=https://swype-meal3.vercel.app,https://swypemeal.ru,https://www.swypemeal.ru
 ```
+
+`SUPABASE_KEY` должен быть **service_role** ключом и храниться только на сервере.
+
+## Авторизация
+
+Все пользовательские и административные эндпоинты требуют заголовок:
+
+```
+Authorization: Bearer <supabase_access_token>
+```
+
+Backend проверяет токен через Supabase Auth (`/auth/v1/user`) и берёт `user_id`
+из токена. Параметр `user_id` в пути должен совпадать с пользователем токена.
+Административные эндпоинты дополнительно проверяют роль `admin` в таблице
+`user_roles`.
+
+Для локальной разработки без Supabase можно временно включить
+`ALLOW_INSECURE_AUTH=true` и передавать `X-User-ID`. **Никогда не включайте это
+в production.**
 
 ### Шаг 4: Деплой
 
