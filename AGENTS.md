@@ -36,6 +36,13 @@
   пользователя: при ~100 свайпах это 150+ последовательных REST-запросов и 25+
   секунд на `DELETE /api/queue/...` (фронтенд падал в `AbortError`). Полный
   `save_state` остался только как fallback при ошибке точечной записи.
+- Рецепты: таблица `recipes` — источник истины. `get_recipe_catalog()` (кэш 5 с)
+  накладывает строки из Supabase поверх `RECIPES_DB`, `get_recipe_by_id()` и
+  `GET /api/recipes?include_all=true` отдают каталог. Фронтенд (`store.ts`)
+  тянет каталог при синхронизации и накладывает его на `src/data.ts`, поэтому
+  правки названий/шагов в Supabase видны в приложении после перезагрузки.
+- Полный рецепт: общий компонент `src/components/RecipeDetail.tsx` (ингредиенты,
+  шаги, БЖУ) открывается из свайпа, очереди и истории.
 - Проверено на production без VPN: `/api/health` → `200`
   `{"status":"healthy","database":"connected"}`, `/images/...` → `200 image/jpeg`,
   заголовок `Authorization` доходит до backend (битый токен →
@@ -236,8 +243,9 @@ print("OK")
    `syncStatus = 'error'`.
 ### P2 — качество
 
-6. `src/data.ts` и backend `RECIPES_DB` дублируют набор рецептов — нужно
-   определить единственный источник истины.
+6. `src/data.ts` дублирует `RECIPES_DB` как fallback для офлайн-режима.
+   Основной источник — таблица `recipes` (перекрывает встроенные рецепты), но
+   при правке встроенного рецепта стоит синхронизировать и `src/data.ts`.
 7. Нет автотестов (кроме ручных smoke-проверок). Кандидат: pytest для backend,
    Vitest для store.
 8. `package-lock.json` показывает 2 high severity vulnerabilities —

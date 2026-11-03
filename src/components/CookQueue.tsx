@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { QueueItem } from '../types';
 import { resolveImageUrl } from '../utils/imageUrl';
-import { Clock, Flame, Check, Trash2, ChefHat, Star, ChevronUp, ChevronDown } from 'lucide-react';
+import RecipeDetail from './RecipeDetail';
+import { Clock, Flame, Check, Trash2, ChefHat, Star, ChevronUp, ChevronDown, Info } from 'lucide-react';
 
 interface CookQueueProps {
   queue: QueueItem[];
@@ -13,6 +14,7 @@ interface CookQueueProps {
 
 export default function CookQueue({ queue, onRemove, onCook, onMoveUp, onMoveDown }: CookQueueProps) {
   const [cookingId, setCookingId] = useState<string | null>(null);
+  const [detailsItem, setDetailsItem] = useState<QueueItem | null>(null);
   const [rating, setRating] = useState(0);
   const [notes, setNotes] = useState('');
 
@@ -91,6 +93,13 @@ export default function CookQueue({ queue, onRemove, onCook, onMoveUp, onMoveDow
                 <div className="text-xs text-gray-400 mt-1">
                   #{index + 1} в очереди
                 </div>
+                <button
+                  onClick={() => setDetailsItem(item)}
+                  className="mt-1 text-xs text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
+                >
+                  <Info size={12} />
+                  Подробнее
+                </button>
               </div>
               <div className="flex flex-col gap-1">
                 {/* Move up/down buttons */}
@@ -203,6 +212,11 @@ export default function CookQueue({ queue, onRemove, onCook, onMoveUp, onMoveDow
             </div>
           </div>
         </div>
+      )}
+
+      {/* Full recipe */}
+      {detailsItem && (
+        <RecipeDetail recipe={detailsItem.recipe} onClose={() => setDetailsItem(null)} />
       )}
     </div>
   );

@@ -9,6 +9,7 @@ const STORAGE_KEYS = {
   preferences: 'swypemeal_preferences',
   swiped: 'swypemeal_swiped',
   customRecipes: 'swypemeal_custom_recipes',
+  remoteRecipes: 'swypemeal_remote_recipes',
   lastSync: 'swypemeal_last_sync',
   syncEnabled: 'swypemeal_sync_enabled',
 };
@@ -80,6 +81,9 @@ export function useStore() {
   const [history, setHistory] = useState<HistoryItem[]>(() => loadFromStorage(STORAGE_KEYS.history, []));
   const [swipedIds, setSwipedIds] = useState<string[]>(() => loadFromStorage(STORAGE_KEYS.swiped, []));
   const [customRecipes, setCustomRecipes] = useState<Recipe[]>(() => loadFromStorage(STORAGE_KEYS.customRecipes, []));
+  // Full recipe catalog from the backend (recipes table + built-ins). Backend
+  // rows override the bundled ones, so edits in Supabase show up in the app.
+  const [remoteRecipes, setRemoteRecipes] = useState<Recipe[]>(() => loadFromStorage(STORAGE_KEYS.remoteRecipes, []));
   const [preferences, setPreferencesState] = useState<UserPreferences>(() =>
     loadFromStorage(STORAGE_KEYS.preferences, {
       maxCalories: 800,
@@ -95,14 +99,21 @@ export function useStore() {
   const [lastSync, setLastSync] = useState<string | null>(() => loadFromStorage(STORAGE_KEYS.lastSync, null));
   const [backendAvailable, setBackendAvailable] = useState<boolean | null>(null);
 
-  // All recipes = default + custom
-  const allRecipes = [...defaultRecipes, ...customRecipes];
+  // All recipes: bundled defaults, overridden by backend catalog, plus custom.
+  const allRecipes = (() => {
+    const byId = new Map<string, Recipe>();
+    defaultRecipes.forEach((r) => byId.set(r.id, r));
+    remoteRecipes.forEach((r) => byId.set(r.id, r));
+    customRecipes.forEach((r) => byId.set(r.id, r));
+    return [...byId.values()];
+  })();
 
   // Persist to localStorage
   useEffect(() => saveToStorage(STORAGE_KEYS.queue, queue), [queue]);
   useEffect(() => saveToStorage(STORAGE_KEYS.history, history), [history]);
   useEffect(() => saveToStorage(STORAGE_KEYS.swiped, swipedIds), [swipedIds]);
   useEffect(() => saveToStorage(STORAGE_KEYS.customRecipes, customRecipes), [customRecipes]);
+  useEffect(() => saveToStorage(STORAGE_KEYS.remoteRecipes, remoteRecipes), [remoteRecipes]);
   useEffect(() => saveToStorage(STORAGE_KEYS.preferences, preferences), [preferences]);
   useEffect(() => saveToStorage(STORAGE_KEYS.syncEnabled, syncEnabled), [syncEnabled]);
 
@@ -128,11 +139,12 @@ export function useStore() {
     setSyncStatus('syncing');
     try {
       // Fetch all data from backend in parallel
-      const [queueRes, historyRes, prefsRes, customRes] = await Promise.allSettled([
+      const [queueRes, historyRes, prefsRes, customRes, catalogRes] = await Promise.allSettled([
         api.getQueue(),
         api.getHistory(),
         api.getPreferences(),
         api.getCustomRecipes(),
+        api.getRecipes({ includeAll: true }),
       ]);
 
       // Update queue
@@ -162,6 +174,12 @@ export function useStore() {
       if (customRes.status === 'fulfilled') {
         const mapped = customRes.value.recipes.map(mapBackendRecipe);
         setCustomRecipes(mapped);
+      }
+
+      // Update the recipe catalog (authoritative titles, steps, images…)
+      if (catalogRes.status === 'fulfilled') {
+        const mapped = catalogRes.value.recipes.map(mapBackendRecipe);
+        setRemoteRecipes(mapped);
       }
 
       const now = new Date().toISOString();

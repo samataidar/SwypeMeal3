@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { HistoryItem } from '../types';
 import { resolveImageUrl } from '../utils/imageUrl';
-import { Clock, Flame, Star, Trash2, Calendar } from 'lucide-react';
+import RecipeDetail from './RecipeDetail';
+import { Clock, Flame, Star, Trash2, Calendar, Info } from 'lucide-react';
 
 interface HistoryProps {
   history: HistoryItem[];
@@ -14,6 +16,8 @@ function formatDate(dateStr: string): string {
 }
 
 export default function History({ history, onRemove }: HistoryProps) {
+  const [detailsItem, setDetailsItem] = useState<HistoryItem | null>(null);
+
   if (history.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 text-center">
@@ -111,11 +115,22 @@ export default function History({ history, onRemove }: HistoryProps) {
                 {item.notes && (
                   <p className="text-xs text-gray-500 mt-1 italic line-clamp-2">"{item.notes}"</p>
                 )}
+                <button
+                  onClick={() => setDetailsItem(item)}
+                  className="mt-2 text-xs text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
+                >
+                  <Info size={12} />
+                  Подробнее
+                </button>
               </div>
             </div>
           </div>
         ))}
       </div>
+
+      {detailsItem && (
+        <RecipeDetail recipe={detailsItem.recipe} onClose={() => setDetailsItem(null)} />
+      )}
     </div>
   );
 }
