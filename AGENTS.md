@@ -27,6 +27,10 @@
   `/images/...`; применён в SwipeView, CookQueue, History, AdminPanel,
   ImageUpload.
 - `vite.config.js`: dev-прокси `/api` и `/images`.
+- `backend/main.py`: общий `httpx.Client` с keep-alive вместо нового клиента на
+  каждый запрос (на Render free 0.1 CPU TLS-хендшейк до Supabase занимал
+  секунды), кэш проверки токена на 60 с + single-flight (параллельные запросы с
+  одним токеном делают один вызов `/auth/v1/user`), кэш `/api/health` на 10 с.
 - Проверено на production без VPN: `/api/health` → `200`
   `{"status":"healthy","database":"connected"}`, `/images/...` → `200 image/jpeg`,
   заголовок `Authorization` доходит до backend (битый токен →
