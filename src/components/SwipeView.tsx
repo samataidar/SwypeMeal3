@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Recipe } from '../types';
 import { resolveImageUrl } from '../utils/imageUrl';
 import RecipeDetail from './RecipeDetail';
-import { Heart, X, Clock, Flame, Info, RotateCcw } from 'lucide-react';
+import { Heart, X, Clock, Flame, Info, RotateCcw, ChevronUp } from 'lucide-react';
 
 interface SwipeCardProps {
   recipe: Recipe;
@@ -11,9 +11,10 @@ interface SwipeCardProps {
   onInfo: () => void;
   isTop: boolean;
   offsetX: number;
+  offsetY?: number;
 }
 
-function SwipeCard({ recipe, onSwipeLeft, onSwipeRight, onInfo, isTop, offsetX }: SwipeCardProps) {
+function SwipeCard({ recipe, onSwipeLeft, onSwipeRight, onInfo, isTop, offsetX, offsetY = 0 }: SwipeCardProps) {
   const difficultyColor = {
     easy: 'bg-green-100 text-green-700',
     medium: 'bg-yellow-100 text-yellow-700',
@@ -32,16 +33,16 @@ function SwipeCard({ recipe, onSwipeLeft, onSwipeRight, onInfo, isTop, offsetX }
 
   return (
     <div
-      className={`absolute w-full transition-transform ${isTop ? 'duration-0' : 'duration-300'}`}
+      className={`absolute w-full max-h-full ${isTop ? 'transition-none' : 'transition-transform duration-300'}`}
       style={{
         transform: isTop
-          ? `translateX(${offsetX}px) rotate(${rotation}deg)`
+          ? `translateX(${offsetX}px) translateY(${offsetY}px) rotate(${rotation}deg)`
           : `translateY(8px) scale(0.95)`,
         zIndex: isTop ? 10 : 5,
         opacity: isTop ? 1 : 0.6,
       }}
     >
-      <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
+      <div className="bg-white rounded-3xl shadow-2xl overflow-y-auto max-h-full border border-gray-100">
       {/* Image area */}
       <div className="relative h-48 bg-gradient-to-br from-orange-50 to-amber-50 overflow-hidden">
         <img 
@@ -116,6 +117,12 @@ function SwipeCard({ recipe, onSwipeLeft, onSwipeRight, onInfo, isTop, offsetX }
               </span>
             ))}
           </div>
+
+          {/* Hint */}
+          <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-center gap-1 text-xs text-gray-400">
+            <ChevronUp size={14} />
+            Потяните вверх или нажмите, чтобы открыть рецепт
+          </div>
         </div>
       </div>
     </div>
@@ -136,13 +143,17 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [offsetX, setOffsetX] = useState(0);
+  const [offsetY, setOffsetY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [exitAnim, setExitAnim] = useState<'left' | 'right' | null>(null);
   const startXRef = useRef(0);
+  const startYRef = useRef(0);
   const startOffsetRef = useRef(0);
+  const movedRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const SWIPE_THRESHOLD = 100;
+  const OPEN_DETAILS_PULL = 70;
 
   // Обновляем стабильный список только когда пользователь нажимает "Начать заново"
   // или когда availableRecipes становится пустым (все рецепты просмотрены)
@@ -156,32 +167,74 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     setIsDragging(true);
+    movedRef.current = false;
     startXRef.current = e.clientX;
+    startYRef.current = e.clientY;
     startOffsetRef.current = offsetX;
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
   }, [offsetX]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!isDragging) return;
-    const delta = e.clientX - startXRef.current;
-    setOffsetX(startOffsetRef.current + delta);
+    const deltaX = e.clientX - startXRef.current;
+    const deltaY = e.clientY - startYRef.current;
+
+    if (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8) {
+      movedRef.current = true;
+    }
+
+    // Vertical drags only pull the card up to open the recipe sheet.
+    if (deltaY < 0 && Math.abs(deltaY) > Math.abs(deltaX)) {
+      setOffsetY(Math.max(-140, deltaY));
+      setOffsetX(0);
+    } else if (Math.abs(deltaX) >= Math.abs(deltaY)) {
+      setOffsetY(0);
+      setOffsetX(startOffsetRef.current + deltaX);
+    }
   }, [isDragging]);
+
+  const openDetails = () => {
+    if (currentIndex < stableRecipes.length) {
+      setSelectedRecipe(stableRecipes[currentIndex]);
+    }
+  };
 
   const handlePointerUp = useCallback(() => {
     if (!isDragging) return;
     setIsDragging(false);
 
-    if (offsetX > SWIPE_THRESHOLD) {
+    const horizontal = offsetX;
+    const vertical = offsetY;
+
+    // Swipe up or a simple tap opens the full recipe.
+    if (vertical <= -OPEN_DETAILS_PULL && Math.abs(horizontal) < SWIPE_THRESHOLD) {
+      setOffsetX(0);
+      setOffsetY(0);
+      openDetails();
+      return;
+    }
+
+    if (!movedRef.current) {
+      setOffsetX(0);
+      setOffsetY(0);
+      openDetails();
+      return;
+    }
+
+    setOffsetY(0);
+    if (horizontal > SWIPE_THRESHOLD) {
       triggerSwipe('right');
-    } else if (offsetX < -SWIPE_THRESHOLD) {
+    } else if (horizontal < -SWIPE_THRESHOLD) {
       triggerSwipe('left');
     } else {
       setOffsetX(0);
     }
-  }, [isDragging, offsetX]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDragging, offsetX, offsetY, currentIndex, stableRecipes]);
 
   const triggerSwipe = (direction: 'left' | 'right') => {
     setExitAnim(direction);
+    setOffsetY(0);
     setOffsetX(direction === 'right' ? 500 : -500);
 
     setTimeout(() => {
@@ -237,7 +290,7 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
       {/* Card stack */}
       <div
         ref={containerRef}
-        className="relative w-full max-w-sm flex-1 flex items-center justify-center select-none"
+        className="relative w-full max-w-sm flex-1 min-h-0 overflow-hidden flex items-center justify-center select-none"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -271,12 +324,13 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
             onInfo={() => setSelectedRecipe(currentRecipe)}
             isTop={true}
             offsetX={offsetX}
+            offsetY={offsetY}
           />
         </div>
       </div>
 
       {/* Action buttons */}
-      <div className="flex items-center justify-center gap-6 mt-6 mb-4">
+      <div className="relative z-20 flex items-center justify-center gap-6 mt-6 mb-4">
         <button
           onClick={() => handleButtonSwipe('left')}
           className="w-16 h-16 bg-white rounded-full shadow-lg flex items-center justify-center border-2 border-red-200 hover:border-red-400 hover:bg-red-50 active:scale-95 transition-all"
