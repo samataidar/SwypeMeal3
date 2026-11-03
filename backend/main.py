@@ -136,6 +136,13 @@ class SupabaseClient:
         for key, value in filters.items():
             params[key] = f"eq.{value}"
         self._request("DELETE", f"/{table}", params=params)
+
+    def update(self, table: str, filters: dict, data: dict) -> None:
+        """Update matching records"""
+        params = {}
+        for key, value in filters.items():
+            params[key] = f"eq.{value}"
+        self._request("PATCH", f"/{table}", params=params, json=data)
     
     def rpc(self, function_name: str, params: dict = None) -> dict:
         """Call a stored procedure"""
@@ -738,6 +745,9 @@ class CookComplete(BaseModel):
     rating: Optional[int] = None
     notes: Optional[str] = None
 
+class QueueOrder(BaseModel):
+    item_ids: List[str]
+
 class NewRecipe(BaseModel):
     title: str
     description: str
@@ -1008,6 +1018,34 @@ def remove_from_queue(
     save_state(user_id, state)
     return {"message": "Removed from queue"}
 
+@app.post("/api/queue/{user_id}/reorder")
+def reorder_queue(
+    user_id: str,
+    order: QueueOrder,
+    current_user: dict = Depends(get_current_user),
+):
+    """Persist the manual queue order (only changed positions are written)."""
+    ensure_user_access(user_id, current_user)
+
+    if not _supabase_enabled():
+        return {"message": "Order saved locally", "updated": 0}
+
+    rows = supabase.select("queue_items", query="id,position", filters={"user_id": user_id})
+    positions = {row["id"]: row.get("position") for row in rows}
+
+    def _apply_order():
+        for index, item_id in enumerate(order.item_ids):
+            # Ignore ids the server does not know (e.g. optimistic local ids).
+            if item_id in positions and positions[item_id] != index:
+                supabase.update(
+                    "queue_items",
+                    {"id": item_id, "user_id": user_id},
+                    {"position": index},
+                )
+
+    _save_or_fail(_apply_order, "queue reorder")
+    return {"message": "Queue reordered"}
+
 @app.post("/api/cook/{user_id}")
 def mark_cooked(
     user_id: str,
@@ -1089,6 +1127,19 @@ def swipe(
     else:
         save_state(user_id, state)
     return {"message": f"Swiped {data.action}", "swiped_count": len(state["swiped_ids"])}
+
+@app.get("/api/swiped/{user_id}")
+def get_swiped(user_id: str, current_user: dict = Depends(get_current_user)):
+    """Return the ids of recipes the user has already swiped."""
+    ensure_user_access(user_id, current_user)
+
+    if _supabase_enabled():
+        rows = supabase.select("swiped_recipes", query="recipe_id", filters={"user_id": user_id})
+        ids = [row["recipe_id"] for row in rows]
+        return {"swiped_ids": ids, "count": len(ids)}
+
+    state = get_state(user_id)
+    return {"swiped_ids": state["swiped_ids"], "count": len(state["swiped_ids"])}
 
 @app.get("/api/preferences/{user_id}")
 def get_preferences(user_id: str, current_user: dict = Depends(get_current_user)):

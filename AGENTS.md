@@ -239,13 +239,13 @@ print("OK")
 
 ### P1 — корректность синхронизации
 
-3. `syncFromBackend` не загружает `swiped_ids` с backend — после перезагрузки
-   свайпы восстанавливаются только из localStorage.
-4. Ручной порядок очереди (`moveQueueUp`/`moveQueueDown`) хранится только
-   локально и теряется при синхронизации.
-5. `Promise.allSettled` в `syncFromBackend` всегда завершается успешно, даже
-   если все запросы упали. Нужно проверять `status === 'rejected'` и выставлять
-   `syncStatus = 'error'`.
+3. **`swiped_ids` (сделано).** `GET /api/swiped/{user_id}` отдаёт список, фронтенд
+   грузит его в `syncFromBackend` — свайпы синхронизируются между устройствами.
+4. **Порядок очереди (сделано).** `POST /api/queue/{user_id}/reorder` пишет
+   `position` только для изменившихся строк; `moveQueueUp/Down` вызывают его.
+5. **Ошибки синхронизации (сделано).** Если все запросы `Promise.allSettled`
+   упали, `syncStatus = 'error'` и `lastSync` не обновляется.
+
 ### P2 — качество
 
 6. `src/data.ts` дублирует `RECIPES_DB` как fallback для офлайн-режима.
