@@ -6,15 +6,10 @@ import { Heart, X, Clock, Flame, Info, RotateCcw, ChevronUp } from 'lucide-react
 
 interface SwipeCardProps {
   recipe: Recipe;
-  onSwipeLeft: () => void;
-  onSwipeRight: () => void;
-  onInfo: () => void;
-  isTop: boolean;
-  offsetX: number;
-  offsetY?: number;
+  offsetX?: number;
 }
 
-function SwipeCard({ recipe, onSwipeLeft, onSwipeRight, onInfo, isTop, offsetX, offsetY = 0 }: SwipeCardProps) {
+function SwipeCard({ recipe, offsetX = 0 }: SwipeCardProps) {
   const difficultyColor = {
     easy: 'bg-green-100 text-green-700',
     medium: 'bg-yellow-100 text-yellow-700',
@@ -27,22 +22,11 @@ function SwipeCard({ recipe, onSwipeLeft, onSwipeRight, onInfo, isTop, offsetX, 
     hard: 'Сложно',
   };
 
-  const rotation = offsetX * 0.08;
   const likeOpacity = Math.max(0, Math.min(1, offsetX / 100));
   const nopeOpacity = Math.max(0, Math.min(1, -offsetX / 100));
 
   return (
-    <div
-      className={`absolute w-full max-h-full ${isTop ? 'transition-none' : 'transition-transform duration-300'}`}
-      style={{
-        transform: isTop
-          ? `translateX(${offsetX}px) translateY(${offsetY}px) rotate(${rotation}deg)`
-          : `translateY(8px) scale(0.95)`,
-        zIndex: isTop ? 10 : 5,
-        opacity: isTop ? 1 : 0.6,
-      }}
-    >
-      <div className="bg-white rounded-3xl shadow-2xl overflow-y-auto max-h-full border border-gray-100">
+    <div className="bg-white rounded-3xl shadow-2xl border border-gray-100">
       {/* Image area */}
       <div className="relative h-48 bg-gradient-to-br from-orange-50 to-amber-50 overflow-hidden">
         <img 
@@ -125,7 +109,6 @@ function SwipeCard({ recipe, onSwipeLeft, onSwipeRight, onInfo, isTop, offsetX, 
           </div>
         </div>
       </div>
-    </div>
   );
 }
 
@@ -301,35 +284,24 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
         onPointerCancel={handlePointerUp}
         style={{ touchAction: 'pan-y' }}
       >
-        {/* Background card */}
+        {/* Background card (decorative) */}
         {nextRecipe && (
-          <SwipeCard
-            recipe={nextRecipe}
-            onSwipeLeft={() => {}}
-            onSwipeRight={() => {}}
-            onInfo={() => {}}
-            isTop={false}
-            offsetX={0}
+          <div
+            aria-hidden
+            className="absolute inset-x-3 inset-y-3 rounded-3xl bg-white/70 border border-gray-100 shadow-sm"
           />
         )}
 
         {/* Current card */}
         <div
-          className="absolute w-full"
+          className="relative w-full max-h-full overflow-y-auto rounded-3xl"
           style={{
+            transform: `translateX(${offsetX}px) translateY(${offsetY}px) rotate(${offsetX * 0.08}deg)`,
             transition: exitAnim ? 'transform 0.25s ease-out, opacity 0.25s ease-out' : isDragging ? 'none' : 'transform 0.3s ease-out',
             opacity: exitAnim ? 0 : 1,
           }}
         >
-          <SwipeCard
-            recipe={currentRecipe}
-            onSwipeLeft={() => handleButtonSwipe('left')}
-            onSwipeRight={() => handleButtonSwipe('right')}
-            onInfo={() => setSelectedRecipe(currentRecipe)}
-            isTop={true}
-            offsetX={offsetX}
-            offsetY={offsetY}
-          />
+          <SwipeCard recipe={currentRecipe} offsetX={offsetX} />
         </div>
       </div>
 
