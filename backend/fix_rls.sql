@@ -11,9 +11,9 @@ DROP POLICY IF EXISTS "Admins can view all roles" ON user_roles;
 DROP POLICY IF EXISTS "Enable all for anon" ON user_roles;
 DROP POLICY IF EXISTS "Enable all for authenticated" ON user_roles;
 
--- Отключаем RLS для user_roles (таблица доступна всем аутентифицированным)
--- Это безопасно, так как backend использует service_role key
-ALTER TABLE user_roles DISABLE ROW LEVEL SECURITY;
+-- ВНИМАНИЕ: этот скрипт исторический. Он больше НЕ отключает RLS —
+-- политики описаны в backend/enable_rls.sql. Оставлен только для функций
+-- upsert и очистки дубликатов.
 
 -- ============================================
 -- 2. ИСПРАВЛЕНИЕ RLS ДЛЯ pending_recipes
@@ -26,8 +26,7 @@ DROP POLICY IF EXISTS "Admins can update pending recipes" ON pending_recipes;
 DROP POLICY IF EXISTS "Enable all for anon" ON pending_recipes;
 DROP POLICY IF EXISTS "Enable all for authenticated" ON pending_recipes;
 
--- Отключаем RLS для pending_recipes (управляется через backend)
-ALTER TABLE pending_recipes DISABLE ROW LEVEL SECURITY;
+-- RLS для pending_recipes включается и настраивается в backend/enable_rls.sql.
 
 -- ============================================
 -- 3. ИСПРАВЛЕНИЕ ДУБЛИКАТОВ В queue_items

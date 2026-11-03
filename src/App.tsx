@@ -26,16 +26,19 @@ function App() {
   useEffect(() => {
     if (!user) {
       syncedUserRef.current = null;
+      store.setUser('');
+      api.setUserId('');
       return;
     }
 
     api.setUserId(user.id);
+    store.setUser(user.id);
 
     if (syncedUserRef.current !== user.id) {
       syncedUserRef.current = user.id;
       store.syncFromBackend();
     }
-  }, [user, store.syncFromBackend]);
+  }, [user, store.setUser, store.syncFromBackend]);
 
   // Show loading screen while checking auth
   if (loading) {

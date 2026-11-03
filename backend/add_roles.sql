@@ -179,6 +179,11 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER update_user_roles_updated_at BEFORE UPDATE ON user_roles
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- Безопасность: включаем RLS (secure by default).
+-- Политики доступа — в backend/enable_rls.sql, выполните его следом.
+ALTER TABLE user_roles      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pending_recipes ENABLE ROW LEVEL SECURITY;
+
 -- Назначение первого администратора (замените YOUR_USER_ID на реальный user_id)
 -- INSERT INTO user_roles (user_id, role) VALUES ('YOUR_USER_ID', 'admin');
 

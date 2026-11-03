@@ -222,21 +222,20 @@ print("OK")
 
 ### P0 — безопасность и изоляция данных
 
-1. **RLS в Supabase отключён.**
-   - `backend/fix_rls.sql` и `backend/fix_rls_and_duplicates.sql` явно
-     отключают RLS у `user_roles` и `pending_recipes`.
-   - `backend/init_db.sql` не включает RLS и политики.
-   - Нужно: включить RLS на всех пользовательских таблицах, добавить политики
-     `auth.uid() = user_id`, отдельные политики для admin.
-   - Учесть, что backend ходит с `service_role` и обходит RLS; политики нужны
-     для прямого доступа клиента и как defense-in-depth.
+1. **RLS: скрипт готов, нужно применить в Supabase.**
+   - `backend/enable_rls.sql` — идемпотентно включает RLS на всех 8 таблицах и
+     создаёт политики (свои строки для пользователя, `status='approved'` для
+     `recipes`, запись в `recipes`/`user_roles` только через backend).
+   - `init_db.sql` и `add_roles.sql` теперь включают RLS при создании таблиц.
+   - `fix_rls.sql` и `fix_rls_and_duplicates.sql` больше не отключают RLS.
+   - Осталось: выполнить `enable_rls.sql` в SQL Editor и прогнать проверку по
+     `docs/rls.md` (anon-ключом чужие строки не видны, приложение работает).
 
-2. **`useStore` не привязан к пользователю.**
-   - Ключи `swypemeal_queue`, `swypemeal_history`, `swypemeal_swiped`,
-     `swypemeal_preferences` глобальные.
-   - При смене аккаунта на одном устройстве возможна утечка данных.
-   - Нужно: добавить `user.id` в ключи или очищать/перезагружать состояние при
-     смене пользователя в `AuthContext`/`App`.
+2. **`useStore` привязан к пользователю (сделано).**
+   - Ключи `swypemeal:<user_id>:queue|history|swiped|preferences|...`;
+     старые глобальные ключи однократно мигрируют в namespace пользователя.
+   - `store.setUser(userId)` вызывается из `App` при входе/выходе и
+     перезагружает состояние из кэша нужного аккаунта.
 
 ### P1 — корректность синхронизации
 
@@ -261,16 +260,19 @@ print("OK")
 
 ## 6. Следующие шаги
 
-1. Проверить вход и админ-панель на `https://swypemeal.ru` без VPN (деплой
-   `5b66974` уже содержит прокси; API, картинки и заголовок `Authorization`
-   проверены, живой вход — за владельцем аккаунта).
-2. Блок RLS:
-   - написать `backend/enable_rls.sql` с политиками;
-   - убрать отключение RLS из старых скриптов или пометить их как исторические;
-   - проверить доступ anon-ключом и service_role.
-3. Привязать `localStorage` к `user.id`.
-4. Доработать синхронизацию: `swiped_ids`, порядок очереди, обработка ошибок.
-5. Добавить тесты и CI (`typecheck`, `build`, `py_compile`, pytest).
+1. **Этап 1 (сделано в коде, осталось применить SQL):** выполнить
+   `backend/enable_rls.sql` в Supabase SQL Editor и прогнать проверки из
+   `docs/rls.md`. `localStorage` уже привязан к `user.id`.
+2. **Этап 2 — синхронизация:**
+   - грузить `swiped_ids` с backend (`GET /api/swiped/{user_id}` или в
+     preferences) и класть в `syncFromBackend`;
+   - сохранять порядок очереди на backend (`position` при move up/down);
+   - считать `Promise.allSettled` упавшим, если все запросы `rejected`;
+   - убирать из каталога рецепты, удалённые из базы.
+3. **Этап 3 — качество:** pytest + Vitest, CI (GitHub Actions), `npm audit`,
+   чистка отладочных `console.log`.
+4. Дополнительно (по желанию): поиск по рецептам, план на неделю
+   (`planned_date`), список покупок, PWA, тосты об ошибках.
 
 ---
 
