@@ -24,6 +24,10 @@ function App() {
   const syncedUserRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // Wait until Supabase restores the session: rendering before that looks
+    // like "signed out" and would switch the store to the anon namespace.
+    if (loading) return;
+
     if (!user) {
       syncedUserRef.current = null;
       store.setUser('');
@@ -38,7 +42,7 @@ function App() {
       syncedUserRef.current = user.id;
       store.syncFromBackend();
     }
-  }, [user, store.setUser, store.syncFromBackend]);
+  }, [user, loading, store.setUser, store.syncFromBackend]);
 
   // Show loading screen while checking auth
   if (loading) {
