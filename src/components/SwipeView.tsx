@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Recipe } from '../types';
 import { resolveImageUrl } from '../utils/imageUrl';
 import RecipeDetail from './RecipeDetail';
-import { Clock, Flame, RotateCcw, ChevronUp } from 'lucide-react';
+import { Clock, Flame, RotateCcw } from 'lucide-react';
 
 interface SwipeCardProps {
   recipe: Recipe;
@@ -100,15 +100,6 @@ function SwipeCard({ recipe, offsetX = 0 }: SwipeCardProps) {
                 #{tag}
               </span>
             ))}
-          </div>
-
-          {/* Hint */}
-          <div className="mt-3 pt-3 border-t border-gray-100 text-center text-xs text-gray-400 space-y-1">
-            <div className="flex items-center justify-center gap-1">
-              <ChevronUp size={14} />
-              Нажмите или потяните вверх — полный рецепт
-            </div>
-            <div>← пропустить · в очередь →</div>
           </div>
         </div>
       </div>
