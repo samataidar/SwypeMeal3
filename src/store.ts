@@ -2,34 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Recipe, QueueItem, HistoryItem, UserPreferences } from './types';
 import { recipes as defaultRecipes } from './data';
 import { api } from './api';
-
-// Cached state is scoped per user: keys look like
-//   swypemeal:<user_id>:queue
-// so signing in as another account on the same device never mixes data.
-const STORAGE_NAMES = {
-  queue: 'queue',
-  history: 'history',
-  preferences: 'preferences',
-  swiped: 'swiped',
-  customRecipes: 'custom_recipes',
-  remoteRecipes: 'remote_recipes',
-  lastSync: 'last_sync',
-  syncEnabled: 'sync_enabled',
-} as const;
-
-type StorageName = keyof typeof STORAGE_NAMES;
-
-// Pre-scoping keys, migrated once into the current user's namespace.
-const LEGACY_KEYS: Record<StorageName, string> = {
-  queue: 'swypemeal_queue',
-  history: 'swypemeal_history',
-  preferences: 'swypemeal_preferences',
-  swiped: 'swypemeal_swiped',
-  customRecipes: 'swypemeal_custom_recipes',
-  remoteRecipes: 'swypemeal_remote_recipes',
-  lastSync: 'swypemeal_last_sync',
-  syncEnabled: 'swypemeal_sync_enabled',
-};
+import { loadScoped, saveScoped } from './utils/userStorage';
 
 const DEFAULT_PREFERENCES: UserPreferences = {
   maxCalories: 800,
@@ -37,40 +10,6 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   excludeTags: [],
   preferredDifficulty: ['easy', 'medium', 'hard'],
 };
-
-function storageKey(userId: string, name: StorageName): string {
-  return `swypemeal:${userId || 'anon'}:${STORAGE_NAMES[name]}`;
-}
-
-function loadScoped<T>(userId: string, name: StorageName, fallback: T): T {
-  try {
-    const key = storageKey(userId, name);
-    const raw = localStorage.getItem(key);
-    if (raw !== null) {
-      return JSON.parse(raw) as T;
-    }
-    // One-time migration of the old global cache into this user's namespace.
-    if (userId) {
-      const legacy = localStorage.getItem(LEGACY_KEYS[name]);
-      if (legacy !== null) {
-        localStorage.setItem(key, legacy);
-        localStorage.removeItem(LEGACY_KEYS[name]);
-        return JSON.parse(legacy) as T;
-      }
-    }
-  } catch {
-    // Corrupted entry: fall back to the default.
-  }
-  return fallback;
-}
-
-function saveScoped<T>(userId: string, name: StorageName, value: T): void {
-  try {
-    localStorage.setItem(storageKey(userId, name), JSON.stringify(value));
-  } catch (e) {
-    console.warn('Failed to save to localStorage:', e);
-  }
-}
 
 // Map backend recipe to frontend format
 function mapBackendRecipe(r: any): Recipe {

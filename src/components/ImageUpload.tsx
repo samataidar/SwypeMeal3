@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { Upload, X, Loader2 } from 'lucide-react';
-import { optimizeImage, formatFileSize } from '../utils/imageOptimizer';
+import { optimizeImage } from '../utils/imageOptimizer';
 import { resolveImageUrl } from '../utils/imageUrl';
 
 interface ImageUploadProps {
@@ -45,8 +45,6 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
     setOptimizing(true);
 
     try {
-      console.log('[ImageUpload] Начинаем загрузку:', file.name, formatFileSize(file.size));
-      
       // Оптимизация изображения перед загрузкой
       const optimizedBlob = await optimizeImage(file, {
         maxWidth: 800,
@@ -65,14 +63,10 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
         { type: 'image/webp' }
       );
 
-      console.log(`[ImageUpload] Оптимизация: ${formatFileSize(file.size)} → ${formatFileSize(optimizedBlob.size)}`);
-
       const formData = new FormData();
       formData.append('file', optimizedFile);
       formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
       formData.append('folder', 'swypemeal/recipes');
-
-      console.log('[ImageUpload] Загружаем в Cloudinary:', CLOUDINARY_CLOUD_NAME);
 
       const response = await fetch(
         `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
@@ -82,8 +76,6 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
         }
       );
 
-      console.log('[ImageUpload] Response status:', response.status);
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('[ImageUpload] Cloudinary error:', errorData);
@@ -91,8 +83,7 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
       }
 
       const data = await response.json();
-      console.log('[ImageUpload] Успешно загружено:', data.secure_url);
-      
+
       // Cloudinary returns optimized URL
       onChange(data.secure_url);
     } catch (err: any) {

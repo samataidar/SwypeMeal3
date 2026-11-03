@@ -51,6 +51,7 @@ npm run dev
 
 ```bash
 npm run typecheck   # проверка TypeScript
+npm test            # unit-тесты (Vitest)
 npm run build       # production-сборка в dist/
 ```
 
@@ -58,12 +59,22 @@ npm run build       # production-сборка в dist/
 
 ```bash
 cd backend
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 cp .env.example .env      # Windows: copy .env.example .env
 uvicorn main:app --reload --port 8000
 ```
 
 Swagger UI: http://localhost:8000/docs
+
+### Тесты
+
+```bash
+npm test                      # frontend: Vitest (src/**/*.test.ts)
+python -m pytest backend/tests  # backend: FastAPI TestClient
+```
+
+CI (`.github/workflows/ci.yml`) на каждый push в `main` и PR запускает:
+`typecheck`, `test`, `build` для фронтенда и `py_compile`, `pytest` для backend.
 
 ---
 

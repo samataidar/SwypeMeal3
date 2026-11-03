@@ -160,6 +160,7 @@ Render напрямую.
 npm install
 npm run dev        # http://localhost:3000
 npm run typecheck
+npm test           # Vitest
 npm run build      # dist/
 ```
 
@@ -167,8 +168,9 @@ npm run build      # dist/
 
 ```bash
 cd backend
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 uvicorn main:app --reload --port 8000
+python -m pytest tests -q
 ```
 
 ### Проверка backend без Supabase
@@ -251,10 +253,14 @@ print("OK")
 6. `src/data.ts` дублирует `RECIPES_DB` как fallback для офлайн-режима.
    Основной источник — таблица `recipes` (перекрывает встроенные рецепты), но
    при правке встроенного рецепта стоит синхронизировать и `src/data.ts`.
-7. Нет автотестов (кроме ручных smoke-проверок). Кандидат: pytest для backend,
-   Vitest для store.
-8. `package-lock.json` показывает 2 high severity vulnerabilities —
-   проверить `npm audit`.
+7. **Автотесты и CI (сделано).**
+   - `backend/tests/test_api.py` — 18 тестов (auth, targeted writes, каталог,
+     reorder, guard от затирания, anon-ключ, health);
+   - `src/utils/userStorage.test.ts` — 6 тестов Vitest (namespace, миграция,
+     изоляция пользователей);
+   - `.github/workflows/ci.yml` — typecheck, test, build, py_compile, pytest.
+8. **Уязвимости (сделано).** `npm audit fix` поднял `vite` 6.4.3 → 6.4.5 и
+   `source-map-js` 1.2.1 → 1.2.2; `npm audit` — 0 vulnerabilities.
 
 ---
 
@@ -263,15 +269,14 @@ print("OK")
 1. **Этап 1 (сделано в коде, осталось применить SQL):** выполнить
    `backend/enable_rls.sql` в Supabase SQL Editor и прогнать проверки из
    `docs/rls.md`. `localStorage` уже привязан к `user.id`.
-2. **Этап 2 — синхронизация:**
-   - грузить `swiped_ids` с backend (`GET /api/swiped/{user_id}` или в
-     preferences) и класть в `syncFromBackend`;
-   - сохранять порядок очереди на backend (`position` при move up/down);
-   - считать `Promise.allSettled` упавшим, если все запросы `rejected`;
-   - убирать из каталога рецепты, удалённые из базы.
-3. **Этап 3 — качество:** pytest + Vitest, CI (GitHub Actions), `npm audit`,
-   чистка отладочных `console.log`.
-4. Дополнительно (по желанию): поиск по рецептам, план на неделю
+2. **Этап 2 (сделано):** `swiped_ids` с backend, порядок очереди в `position`,
+   ошибки `Promise.allSettled`, каталог из БД.
+3. **Этап 3 (сделано):** pytest + Vitest, CI (GitHub Actions), `npm audit` = 0,
+   отладочные `console.log` убраны.
+4. **Проверить прод после смены ключа на Render** (`SUPABASE_KEY` =
+   service_role, `USE_SUPABASE=true`): `/api/health` должен вернуть
+   `healthy/connected/service_role`.
+5. Дополнительно (по желанию): поиск по рецептам, план на неделю
    (`planned_date`), список покупок, PWA, тосты об ошибках.
 
 ---
