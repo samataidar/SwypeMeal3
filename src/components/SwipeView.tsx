@@ -302,7 +302,7 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
       {/* Card stack */}
       <div
         ref={containerRef}
-        className="relative w-full max-w-md flex-1 min-h-0 overflow-hidden flex items-center justify-center select-none"
+        className="relative w-full flex-1 min-h-0 overflow-hidden flex items-center justify-center select-none"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
