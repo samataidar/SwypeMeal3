@@ -196,13 +196,22 @@ export function useStore() {
     setSyncStatus('syncing');
     try {
       // Fetch all data from backend in parallel
-      const [queueRes, historyRes, prefsRes, customRes, catalogRes] = await Promise.allSettled([
+      const results = await Promise.allSettled([
         api.getQueue(),
         api.getHistory(),
         api.getPreferences(),
         api.getCustomRecipes(),
         api.getRecipes({ includeAll: true }),
+        api.getSwipedIds(),
       ]);
+      const [queueRes, historyRes, prefsRes, customRes, catalogRes, swipedRes] = results;
+
+      // If every request failed, report an error instead of a false "synced".
+      if (results.every((result) => result.status === 'rejected')) {
+        console.error('Sync failed: all requests rejected');
+        setSyncStatus('error');
+        return;
+      }
 
       // Update queue
       if (queueRes.status === 'fulfilled') {
@@ -231,6 +240,11 @@ export function useStore() {
       if (customRes.status === 'fulfilled') {
         const mapped = customRes.value.recipes.map(mapBackendRecipe);
         setCustomRecipes(mapped);
+      }
+
+      // Update swiped recipes (server is authoritative so swipes sync across devices)
+      if (swipedRes.status === 'fulfilled') {
+        setSwipedIds(swipedRes.value.swiped_ids);
       }
 
       // Update the recipe catalog (authoritative titles, steps, images…)
@@ -300,29 +314,33 @@ export function useStore() {
     }
   }, [syncEnabled, backendAvailable]);
 
+  // Persist the manual order (server ignores ids it does not know yet).
+  const persistQueueOrder = useCallback((items: QueueItem[]) => {
+    if (!syncEnabled || !backendAvailable) return;
+    api.reorderQueue(items.map((item) => item.id)).catch(() => {
+      console.warn('Failed to persist queue order');
+    });
+  }, [syncEnabled, backendAvailable]);
+
   // Move up
   const moveQueueUp = useCallback((id: string) => {
-    setQueue((prev) => {
-      const index = prev.findIndex((item) => item.id === id);
-      if (index <= 0) return prev;
-      const newQueue = [...prev];
-      [newQueue[index - 1], newQueue[index]] = [newQueue[index], newQueue[index - 1]];
-      return newQueue;
-    });
-    // Note: manual reordering is local-only for now
-    // Backend FIFO is preserved, but user's manual order is a UI preference
-  }, []);
+    const index = queue.findIndex((item) => item.id === id);
+    if (index <= 0) return;
+    const newQueue = [...queue];
+    [newQueue[index - 1], newQueue[index]] = [newQueue[index], newQueue[index - 1]];
+    setQueue(newQueue);
+    persistQueueOrder(newQueue);
+  }, [queue, persistQueueOrder]);
 
   // Move down
   const moveQueueDown = useCallback((id: string) => {
-    setQueue((prev) => {
-      const index = prev.findIndex((item) => item.id === id);
-      if (index === -1 || index >= prev.length - 1) return prev;
-      const newQueue = [...prev];
-      [newQueue[index], newQueue[index + 1]] = [newQueue[index + 1], newQueue[index]];
-      return newQueue;
-    });
-  }, []);
+    const index = queue.findIndex((item) => item.id === id);
+    if (index === -1 || index >= queue.length - 1) return;
+    const newQueue = [...queue];
+    [newQueue[index], newQueue[index + 1]] = [newQueue[index + 1], newQueue[index]];
+    setQueue(newQueue);
+    persistQueueOrder(newQueue);
+  }, [queue, persistQueueOrder]);
 
   // Atomic cook transaction
   const moveToHistory = useCallback(async (queueItemId: string, rating?: number, notes?: string) => {

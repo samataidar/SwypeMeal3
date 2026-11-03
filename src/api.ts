@@ -111,6 +111,16 @@ class ApiClient {
     );
   }
 
+  async reorderQueue(itemIds: string[]) {
+    return this.request<{ message: string }>(
+      `/api/queue/${this.userId}/reorder`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ item_ids: itemIds }),
+      }
+    );
+  }
+
   // Cook
   async markCooked(queueItemId: string, rating?: number, notes?: string) {
     return this.request<{ message: string; item: any }>(
@@ -146,6 +156,12 @@ class ApiClient {
         method: 'POST',
         body: JSON.stringify({ recipe_id: recipeId, action }),
       }
+    );
+  }
+
+  async getSwipedIds() {
+    return this.request<{ swiped_ids: string[]; count: number }>(
+      `/api/swiped/${this.userId}`
     );
   }
 
