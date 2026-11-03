@@ -881,16 +881,13 @@ def get_custom_recipes(current_user: dict = Depends(get_current_user)):
 @app.get("/api/recipes/pending")
 def get_pending_recipes(current_user: dict = Depends(require_admin)):
     """Get recipes pending moderation (admin only)"""
-    print(f"[DEBUG] get_pending_recipes called, USE_SUPABASE={USE_SUPABASE}, supabase={supabase is not None}")
     if USE_SUPABASE and supabase:
         try:
             result = supabase.select("pending_recipes", filters={"status": "pending"}, order="created_at.asc")
-            print(f"[DEBUG] Found {len(result)} pending recipes")
             return {"recipes": result, "count": len(result)}
         except Exception as e:
             print(f"[ERROR] Error getting pending recipes: {e}")
             raise HTTPException(status_code=500, detail=str(e))
-    print("[DEBUG] Supabase not available, returning empty list")
     return {"recipes": [], "count": 0}
 
 @app.post("/api/recipes/submit")

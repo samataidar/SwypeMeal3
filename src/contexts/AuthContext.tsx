@@ -30,7 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Load user role if authenticated
       if (session?.user) {
         api.setUserId(session.user.id);
-        loadUserRole(session.user.id);
+        loadUserRole();
       }
     });
 
@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (session?.user) {
         api.setUserId(session.user.id);
-        loadUserRole(session.user.id);
+        loadUserRole();
       } else {
         setUserRole(null);
       }
@@ -51,13 +51,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const loadUserRole = async (userId: string) => {
+  const loadUserRole = async () => {
     try {
-      console.log('[AuthContext] Loading user role for:', userId);
       const result = await api.getUserRole();
-      console.log('[AuthContext] User role result:', result);
       setUserRole(result.role as 'user' | 'admin');
-      console.log('[AuthContext] User role set to:', result.role);
     } catch (error) {
       console.error('[AuthContext] Error loading user role:', error);
       setUserRole('user'); // Default to user role

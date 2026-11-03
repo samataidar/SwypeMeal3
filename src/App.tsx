@@ -63,8 +63,6 @@ function App() {
 
   const isAdmin = userRole === 'admin';
   
-  console.log('[App] userRole:', userRole, 'isAdmin:', isAdmin);
-  
   const tabs: { id: Tab; icon: any; label: string; badge?: number }[] = [
     { id: 'swipe', icon: Heart, label: 'Свайп' },
     { id: 'queue', icon: List, label: 'Очередь', badge: store.queue.length },
