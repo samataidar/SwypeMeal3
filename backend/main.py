@@ -577,6 +577,80 @@ def save_state(user_id: str, state: dict):
             print(f"Supabase save error, falling back to file: {e}")
     save_user_state(user_id, state)
 
+# Targeted writes.
+#
+# `save_state` rewrites every table for the user on each mutation: it deletes
+# and re-inserts the whole queue, history, swipes and preferences. With a few
+# hundred swipes that is hundreds of sequential REST calls (25+ seconds on
+# Render free), which used to blow the frontend request timeout. Mutations now
+# touch only the affected rows and fall back to `save_state` on error.
+
+def _supabase_enabled() -> bool:
+    return bool(USE_SUPABASE and supabase)
+
+
+def _insert_queue_item(user_id: str, item: dict, position: int) -> None:
+    ensure_user_exists(user_id)
+    ensure_recipe_exists(item["recipe"])
+    supabase.upsert("queue_items", {
+        "id": item["id"],
+        "user_id": user_id,
+        "recipe_id": item["recipe"]["id"],
+        "position": position,
+        "added_at": item.get("added_at"),
+    }, on_conflict="id")
+
+
+def _delete_row(table: str, user_id: str, item_id: str) -> None:
+    supabase.delete(table, {"id": item_id, "user_id": user_id})
+
+
+def _insert_history_item(user_id: str, item: dict) -> None:
+    ensure_user_exists(user_id)
+    ensure_recipe_exists(item["recipe"])
+    supabase.upsert("history_items", {
+        "id": item["id"],
+        "user_id": user_id,
+        "recipe_id": item["recipe"]["id"],
+        "cooked_at": item.get("cooked_at"),
+        "rating": item.get("rating"),
+        "notes": item.get("notes"),
+    }, on_conflict="id")
+
+
+def _insert_swipe(user_id: str, recipe_id: str, action: str) -> None:
+    ensure_user_exists(user_id)
+    recipe = get_recipe_by_id(recipe_id)
+    if recipe:
+        ensure_recipe_exists(recipe)
+    supabase.upsert("swiped_recipes", {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "recipe_id": recipe_id,
+        "action": action,
+    }, on_conflict="id")
+
+
+def _clear_swipes(user_id: str) -> None:
+    supabase.delete("swiped_recipes", {"user_id": user_id})
+
+
+def _save_preferences(user_id: str, prefs: dict) -> None:
+    ensure_user_exists(user_id)
+    row = {
+        "user_id": user_id,
+        "max_calories": prefs.get("max_calories", 800),
+        "max_cook_time": prefs.get("max_cook_time", 60),
+        "exclude_tags": prefs.get("exclude_tags", []),
+        "preferred_difficulty": prefs.get("preferred_difficulty", ["easy", "medium", "hard"]),
+    }
+    existing = supabase.select("user_preferences", filters={"user_id": user_id})
+    if existing:
+        row["id"] = existing[0]["id"]
+    else:
+        row["id"] = str(uuid.uuid4())
+    supabase.upsert("user_preferences", row, on_conflict="id")
+
 # ============================================
 # Models
 # ============================================
@@ -874,6 +948,12 @@ def add_to_queue(
         raise HTTPException(status_code=400, detail="Already in queue")
     item = {"id": str(uuid.uuid4()), "recipe": recipe, "added_at": datetime.now().isoformat()}
     state["queue"].append(item)
+    if _supabase_enabled():
+        try:
+            _insert_queue_item(user_id, item, len(state["queue"]) - 1)
+            return {"message": "Added to queue", "item": item}
+        except Exception as e:
+            print(f"[WARN] Targeted queue insert failed, saving full state: {e}")
     save_state(user_id, state)
     return {"message": "Added to queue", "item": item}
 
@@ -884,6 +964,12 @@ def remove_from_queue(
     current_user: dict = Depends(get_current_user),
 ):
     ensure_user_access(user_id, current_user)
+    if _supabase_enabled():
+        try:
+            _delete_row("queue_items", user_id, item_id)
+            return {"message": "Removed from queue"}
+        except Exception as e:
+            print(f"[WARN] Targeted queue delete failed, saving full state: {e}")
     state = get_state(user_id)
     state["queue"] = [q for q in state["queue"] if q["id"] != item_id]
     save_state(user_id, state)
@@ -907,6 +993,13 @@ def mark_cooked(
     history_item = {"id": str(uuid.uuid4()), "recipe": item["recipe"], "cooked_at": datetime.now().isoformat(), "rating": data.rating, "notes": data.notes}
     state["history"].insert(0, history_item)
     state["queue"] = [q for q in state["queue"] if q["id"] != data.queue_item_id]
+    if _supabase_enabled():
+        try:
+            _insert_history_item(user_id, history_item)
+            _delete_row("queue_items", user_id, data.queue_item_id)
+            return {"message": "Marked as cooked", "item": history_item}
+        except Exception as e:
+            print(f"[WARN] Targeted cook write failed, saving full state: {e}")
     save_state(user_id, state)
     return {"message": "Marked as cooked", "item": history_item}
 
@@ -923,6 +1016,12 @@ def remove_from_history(
     current_user: dict = Depends(get_current_user),
 ):
     ensure_user_access(user_id, current_user)
+    if _supabase_enabled():
+        try:
+            _delete_row("history_items", user_id, item_id)
+            return {"message": "Removed from history"}
+        except Exception as e:
+            print(f"[WARN] Targeted history delete failed, saving full state: {e}")
     state = get_state(user_id)
     state["history"] = [h for h in state["history"] if h["id"] != item_id]
     save_state(user_id, state)
@@ -936,13 +1035,25 @@ def swipe(
 ):
     ensure_user_access(user_id, current_user)
     state = get_state(user_id)
-    if data.recipe_id not in state["swiped_ids"]:
+    new_swipe = data.recipe_id not in state["swiped_ids"]
+    if new_swipe:
         state["swiped_ids"].append(data.recipe_id)
+    added_item = None
     if data.action == "like":
         recipe = get_recipe_by_id(data.recipe_id)
         if recipe and not any(q["recipe"]["id"] == data.recipe_id for q in state["queue"]):
             item = {"id": str(uuid.uuid4()), "recipe": recipe, "added_at": datetime.now().isoformat()}
             state["queue"].append(item)
+            added_item = item
+    if _supabase_enabled():
+        try:
+            if new_swipe:
+                _insert_swipe(user_id, data.recipe_id, data.action)
+            if added_item is not None:
+                _insert_queue_item(user_id, added_item, len(state["queue"]) - 1)
+            return {"message": f"Swiped {data.action}", "swiped_count": len(state["swiped_ids"])}
+        except Exception as e:
+            print(f"[WARN] Targeted swipe write failed, saving full state: {e}")
     save_state(user_id, state)
     return {"message": f"Swiped {data.action}", "swiped_count": len(state["swiped_ids"])}
 
@@ -959,14 +1070,27 @@ def update_preferences(
     current_user: dict = Depends(get_current_user),
 ):
     ensure_user_access(user_id, current_user)
+    prefs_dict = prefs.model_dump()
+    if _supabase_enabled():
+        try:
+            _save_preferences(user_id, prefs_dict)
+            return {"message": "Preferences updated", "preferences": prefs}
+        except Exception as e:
+            print(f"[WARN] Targeted preferences write failed, saving full state: {e}")
     state = get_state(user_id)
-    state["preferences"] = prefs.model_dump()
+    state["preferences"] = prefs_dict
     save_state(user_id, state)
     return {"message": "Preferences updated", "preferences": prefs}
 
 @app.post("/api/reset/{user_id}")
 def reset_swipes(user_id: str, current_user: dict = Depends(get_current_user)):
     ensure_user_access(user_id, current_user)
+    if _supabase_enabled():
+        try:
+            _clear_swipes(user_id)
+            return {"message": "Swipes reset"}
+        except Exception as e:
+            print(f"[WARN] Targeted swipes reset failed, saving full state: {e}")
     state = get_state(user_id)
     state["swiped_ids"] = []
     save_state(user_id, state)
