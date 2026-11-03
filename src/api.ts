@@ -274,7 +274,11 @@ class ApiClient {
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
       const response = await fetch(`${API_URL}/api/health`, { signal: controller.signal });
-      return response.ok;
+      if (!response.ok) return false;
+      // The API can answer 200 with status "unhealthy" (e.g. misconfigured
+      // storage key). Treat that as offline so local data is not overwritten.
+      const data = await response.json().catch(() => null);
+      return data?.status === 'healthy';
     } catch {
       return false;
     } finally {

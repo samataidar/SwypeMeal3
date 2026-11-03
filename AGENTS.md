@@ -285,6 +285,12 @@ print("OK")
   `DATABASE_URL`, `psycopg`, SQLAlchemy больше не нужны.
 - **Ключи:** `SUPABASE_KEY` на backend — `service_role`; на frontend —
   только `anon`. Не перепутать.
+- **`SUPABASE_KEY` = anon:** с включённым RLS backend не видит и не пишет данные
+  (RLS режет по `auth.uid()`, которого на сервере нет). Признак:
+  `GET /api/health` → `{"status":"unhealthy","supabase_key_role":"anon"}`, а
+  storage-эндпоинты отвечают `503`. Исправление: поставить service_role ключ в
+  Render → Environment и перезапустить сервис. Фронтенд при unhealthy не
+  синхронизируется и не затирает локальные данные.
 - **CORS:** при новом домене добавить его в `CORS_ORIGINS` или в
   `allow_origin_regex` в `main.py`.
 - **Vercel preview:** OAuth redirect должен быть добавлен в Supabase Auth →
