@@ -10,6 +10,9 @@ import os
 import json
 from datetime import datetime
 import uuid
+import hashlib
+import threading
+import time
 import httpx
 
 app = FastAPI(title="SwypeMeal API", version="2.0.0")
@@ -57,6 +60,18 @@ print(f"[DEBUG] AUTH_ENABLED: {AUTH_ENABLED}")
 print(f"[DEBUG] ALLOW_INSECURE_AUTH: {ALLOW_INSECURE_AUTH}")
 
 # ============================================
+# Shared HTTP client
+# ============================================
+
+# Reusing connections avoids a fresh TLS handshake to Supabase on every request.
+# On Render's free tier (0.1 CPU) that handshake alone costs several seconds,
+# which used to make the frontend hit its request timeout.
+_http_client = httpx.Client(
+    timeout=httpx.Timeout(15.0, connect=10.0),
+    limits=httpx.Limits(max_keepalive_connections=20, max_connections=40),
+)
+
+# ============================================
 # Supabase REST API Client (using httpx directly)
 # ============================================
 
@@ -76,13 +91,12 @@ class SupabaseClient:
     def _request(self, method: str, path: str, **kwargs) -> dict:
         """Make a request to Supabase REST API"""
         url = f"{self.rest_url}{path}"
-        with httpx.Client(timeout=10.0) as client:
-            response = client.request(method, url, headers=self.headers, **kwargs)
-            if response.status_code >= 400:
-                raise Exception(f"Supabase error {response.status_code}: {response.text}")
-            if response.text:
-                return response.json()
-            return {}
+        response = _http_client.request(method, url, headers=self.headers, **kwargs)
+        if response.status_code >= 400:
+            raise Exception(f"Supabase error {response.status_code}: {response.text}")
+        if response.text:
+            return response.json()
+        return {}
     
     def select(self, table: str, query: str = "*", filters: dict = None, order: str = None, limit: int = None) -> list:
         """Select records from a table"""
@@ -109,13 +123,12 @@ class SupabaseClient:
         if on_conflict:
             params["on_conflict"] = on_conflict
         url = f"{self.rest_url}/{table}"
-        with httpx.Client(timeout=10.0) as client:
-            response = client.post(url, headers=headers, params=params, json=data)
-            if response.status_code >= 400:
-                raise Exception(f"Supabase error {response.status_code}: {response.text}")
-            if response.text:
-                return response.json()
-            return {}
+        response = _http_client.post(url, headers=headers, params=params, json=data)
+        if response.status_code >= 400:
+            raise Exception(f"Supabase error {response.status_code}: {response.text}")
+        if response.text:
+            return response.json()
+        return {}
     
     def delete(self, table: str, filters: dict) -> None:
         """Delete records from a table"""
@@ -170,6 +183,51 @@ def _auth_error(detail: str = "Authentication required") -> HTTPException:
     )
 
 
+# Verifying a token costs a Supabase roundtrip. The frontend fires several
+# authenticated requests at once, so successful verifications are cached for a
+# short time and concurrent checks of the same token share one network call.
+_TOKEN_CACHE_TTL_SECONDS = 60.0
+_TOKEN_CACHE_MAX_ENTRIES = 500
+_token_cache = {}  # token hash -> (expires_at_monotonic, user)
+_token_locks = {}  # token hash -> threading.Lock
+_token_cache_lock = threading.Lock()
+
+
+def _token_key(access_token: str) -> str:
+    return hashlib.sha256(access_token.encode("utf-8")).hexdigest()
+
+
+def _cache_lookup(key: str):
+    now = time.monotonic()
+    with _token_cache_lock:
+        entry = _token_cache.get(key)
+        if not entry:
+            return None
+        expires_at, user = entry
+        if expires_at <= now:
+            _token_cache.pop(key, None)
+            return None
+        return user
+
+
+def _cache_store(key: str, user: dict) -> None:
+    with _token_cache_lock:
+        if len(_token_cache) >= _TOKEN_CACHE_MAX_ENTRIES:
+            _token_cache.clear()
+        _token_cache[key] = (time.monotonic() + _TOKEN_CACHE_TTL_SECONDS, user)
+
+
+def _token_lock(key: str) -> threading.Lock:
+    with _token_cache_lock:
+        lock = _token_locks.get(key)
+        if lock is None:
+            if len(_token_locks) >= _TOKEN_CACHE_MAX_ENTRIES:
+                _token_locks.clear()
+            lock = threading.Lock()
+            _token_locks[key] = lock
+        return lock
+
+
 def verify_supabase_token(access_token: str) -> dict:
     """Verify a Supabase access token and return the authenticated user."""
     if not AUTH_ENABLED:
@@ -178,43 +236,54 @@ def verify_supabase_token(access_token: str) -> dict:
             detail="Authentication is not configured on the server",
         )
 
-    url = f"{SUPABASE_URL.rstrip('/')}/auth/v1/user"
-    headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {access_token}",
-    }
+    key = _token_key(access_token)
+    cached = _cache_lookup(key)
+    if cached is not None:
+        return cached
 
-    try:
-        with httpx.Client(timeout=10.0) as client:
-            response = client.get(url, headers=headers)
-    except httpx.HTTPError as exc:
-        print(f"[AUTH] Supabase auth request failed: {exc}")
-        raise HTTPException(
-            status_code=503,
-            detail="Authentication service is unavailable",
-        )
+    # Only one verification per token runs at a time; the others reuse its result.
+    with _token_lock(key):
+        cached = _cache_lookup(key)
+        if cached is not None:
+            return cached
 
-    if response.status_code in (401, 403):
-        raise _auth_error("Invalid or expired token")
-    if response.status_code >= 400:
-        print(f"[AUTH] Supabase auth error {response.status_code}: {response.text}")
-        raise HTTPException(
-            status_code=503,
-            detail="Authentication service error",
-        )
+        url = f"{SUPABASE_URL.rstrip('/')}/auth/v1/user"
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {access_token}",
+        }
 
-    try:
-        user = response.json()
-    except ValueError:
-        raise HTTPException(
-            status_code=503,
-            detail="Authentication service returned an invalid response",
-        )
+        try:
+            response = _http_client.get(url, headers=headers)
+        except httpx.HTTPError as exc:
+            print(f"[AUTH] Supabase auth request failed: {exc}")
+            raise HTTPException(
+                status_code=503,
+                detail="Authentication service is unavailable",
+            )
 
-    if not isinstance(user, dict) or not user.get("id"):
-        raise _auth_error("Invalid token payload")
+        if response.status_code in (401, 403):
+            raise _auth_error("Invalid or expired token")
+        if response.status_code >= 400:
+            print(f"[AUTH] Supabase auth error {response.status_code}: {response.text}")
+            raise HTTPException(
+                status_code=503,
+                detail="Authentication service error",
+            )
 
-    return user
+        try:
+            user = response.json()
+        except ValueError:
+            raise HTTPException(
+                status_code=503,
+                detail="Authentication service returned an invalid response",
+            )
+
+        if not isinstance(user, dict) or not user.get("id"):
+            raise _auth_error("Invalid token payload")
+
+        _cache_store(key, user)
+        return user
 
 
 def get_current_user(request: Request) -> dict:
@@ -933,15 +1002,32 @@ def get_user_role(user_id: str, current_user: dict = Depends(get_current_user)):
             )
     return {"role": get_role_for_user(user_id)}
 
+_health_cache = None  # (expires_at_monotonic, payload)
+_health_cache_lock = threading.Lock()
+_HEALTH_CACHE_TTL_SECONDS = 10.0
+
+
 @app.get("/api/health")
 def health_check():
+    global _health_cache
+
+    now = time.monotonic()
+    with _health_cache_lock:
+        if _health_cache and _health_cache[0] > now:
+            return _health_cache[1]
+
     if USE_SUPABASE and supabase:
         try:
             supabase.test_connection()
-            return {"status": "healthy", "database": "connected"}
+            payload = {"status": "healthy", "database": "connected"}
         except Exception as e:
-            return {"status": "unhealthy", "database": str(e)}
-    return {"status": "healthy", "database": "file_storage"}
+            payload = {"status": "unhealthy", "database": str(e)}
+    else:
+        payload = {"status": "healthy", "database": "file_storage"}
+
+    with _health_cache_lock:
+        _health_cache = (time.monotonic() + _HEALTH_CACHE_TTL_SECONDS, payload)
+    return payload
 
 if __name__ == "__main__":
     import uvicorn
