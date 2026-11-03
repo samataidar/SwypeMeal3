@@ -933,17 +933,6 @@ def get_user_role(user_id: str, current_user: dict = Depends(get_current_user)):
             )
     return {"role": get_role_for_user(user_id)}
 
-@app.get("/api/telegram/init")
-def telegram_init(user_id: str, current_user: dict = Depends(get_current_user)):
-    ensure_user_access(user_id, current_user)
-    state = get_state(user_id)
-    return {
-        "user_id": user_id,
-        "queue_count": len(state["queue"]),
-        "history_count": len(state["history"]),
-        "available_recipes": len([r for r in RECIPES_DB if r.id not in state["swiped_ids"]])
-    }
-
 @app.get("/api/health")
 def health_check():
     if USE_SUPABASE and supabase:

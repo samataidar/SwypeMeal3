@@ -224,16 +224,6 @@ class ApiClient {
     );
   }
 
-  // Telegram
-  async telegramInit() {
-    return this.request<{
-      user_id: string;
-      queue_count: number;
-      history_count: number;
-      available_recipes: number;
-    }>(`/api/telegram/init?user_id=${this.userId}`);
-  }
-
   // Health check
   async healthCheck() {
     const controller = new AbortController();

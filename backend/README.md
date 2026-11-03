@@ -45,16 +45,15 @@ uvicorn main:app --reload --port 8000
 | PUT | `/api/preferences/{user_id}` | Обновить настройки |
 | POST | `/api/reset/{user_id}` | Сбросить свайпы |
 | GET | `/api/stats/{user_id}` | Статистика |
-| GET | `/api/telegram/init` | Инициализация Telegram Mini App |
 
 ## Деплой на Render.com
 
 ### Шаг 1: Подготовка
 
-Убедитесь, что в корне репозитория есть файлы:
-- `runtime.txt` — фиксация версии Python (3.12.7)
-- `Procfile` — команда запуска
-- `render.yaml` — конфигурация (опционально)
+В репозитории уже есть:
+- `render.yaml` — готовая конфигурация сервиса;
+- `backend/runtime.txt` — фиксация Python 3.12.7;
+- `backend/requirements.txt` — зависимости.
 
 ### Шаг 2: Создание сервиса
 
@@ -107,9 +106,11 @@ Backend проверяет токен через Supabase Auth (`/auth/v1/user`)
 ### Шаг 4: Деплой
 
 Нажмите **"Create Web Service"**. Render автоматически:
-- Определит Python 3.12.7 из `runtime.txt`
-- Установит зависимости из `requirements.txt`
-- Запустит сервер через `Procfile`
+- определит Python 3.12.7 из `backend/runtime.txt`;
+- установит зависимости из `requirements.txt`;
+- запустит `uvicorn main:app --host 0.0.0.0 --port $PORT`.
+
+Если используется `render.yaml`, сервис создаётся из него с теми же командами.
 
 ### Troubleshooting
 
@@ -126,32 +127,21 @@ python-3.12.7
 
 **Ошибка: CORS**
 
-Решение: добавьте URL фронтенда в `allow_origins` в `main.py`.
+Решение: добавьте URL фронтенда в `CORS_ORIGINS` (через запятую) в переменных
+окружения Render. Vercel preview-домены `swype-meal3*.vercel.app` разрешены
+автоматически.
 
 ## Хранение данных
 
-Данные пользователей хранятся в JSON-файлах в папке `data/`. 
+При `USE_SUPABASE=true` данные хранятся в Supabase и доступны через REST API.
+Backend использует `service_role` ключ и обходит RLS, поэтому проверки доступа
+выполняются в коде (`ensure_user_access`, `require_admin`).
+
+Без Supabase backend пишет JSON-файлы в `backend/data/`.
 
 ⚠️ **Важно для Render Free Tier:**
-- Файловая система эфемерная — данные удаляются при перезапуске
-- Для production используйте PostgreSQL или Redis
-
-### Миграция на PostgreSQL
-
-```python
-# Установите зависимости
-pip install sqlalchemy psycopg2-binary
-
-# Обновите models и storage
-# См. https://fastapi.tiangolo.com/tutorial/sql-databases/
-```
-
-## Telegram Mini App
-
-Для интеграции с Telegram:
-1. Создайте бота через @BotFather
-2. Настройте Web App URL на ваш фронтенд
-3. Используйте `/api/telegram/init` для инициализации
+- файловая система эфемерная — JSON-данные удаляются при перезапуске;
+- для production обязательно используйте Supabase.
 
 ## Требования
 

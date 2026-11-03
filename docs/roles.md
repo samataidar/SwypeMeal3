@@ -407,9 +407,9 @@ GROUP BY status;
 
 ## 📚 Документация
 
-- **[AUTH_SETUP.md](AUTH_SETUP.md)** — настройка аутентификации
-- **[SUPABASE_SETUP.md](SUPABASE_SETUP.md)** — подключение Supabase
-- **[DATABASE.md](DATABASE.md)** — документация по БД
+- **[auth-setup.md](auth-setup.md)** — настройка аутентификации
+- **[supabase-rest-api.md](supabase-rest-api.md)** — работа backend с Supabase
+- **[rls.md](rls.md)** — RLS и защита данных
 
 ---
 
