@@ -3,7 +3,24 @@ import { Recipe, QueueItem, HistoryItem, UserPreferences } from './types';
 import { recipes as defaultRecipes } from './data';
 import { api } from './api';
 
-const STORAGE_KEYS = {
+// Cached state is scoped per user: keys look like
+//   swypemeal:<user_id>:queue
+// so signing in as another account on the same device never mixes data.
+const STORAGE_NAMES = {
+  queue: 'queue',
+  history: 'history',
+  preferences: 'preferences',
+  swiped: 'swiped',
+  customRecipes: 'custom_recipes',
+  remoteRecipes: 'remote_recipes',
+  lastSync: 'last_sync',
+  syncEnabled: 'sync_enabled',
+} as const;
+
+type StorageName = keyof typeof STORAGE_NAMES;
+
+// Pre-scoping keys, migrated once into the current user's namespace.
+const LEGACY_KEYS: Record<StorageName, string> = {
   queue: 'swypemeal_queue',
   history: 'swypemeal_history',
   preferences: 'swypemeal_preferences',
@@ -14,18 +31,42 @@ const STORAGE_KEYS = {
   syncEnabled: 'swypemeal_sync_enabled',
 };
 
-function loadFromStorage<T>(key: string, defaultValue: T): T {
-  try {
-    const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : defaultValue;
-  } catch {
-    return defaultValue;
-  }
+const DEFAULT_PREFERENCES: UserPreferences = {
+  maxCalories: 800,
+  maxCookTime: 60,
+  excludeTags: [],
+  preferredDifficulty: ['easy', 'medium', 'hard'],
+};
+
+function storageKey(userId: string, name: StorageName): string {
+  return `swypemeal:${userId || 'anon'}:${STORAGE_NAMES[name]}`;
 }
 
-function saveToStorage<T>(key: string, value: T): void {
+function loadScoped<T>(userId: string, name: StorageName, fallback: T): T {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    const key = storageKey(userId, name);
+    const raw = localStorage.getItem(key);
+    if (raw !== null) {
+      return JSON.parse(raw) as T;
+    }
+    // One-time migration of the old global cache into this user's namespace.
+    if (userId) {
+      const legacy = localStorage.getItem(LEGACY_KEYS[name]);
+      if (legacy !== null) {
+        localStorage.setItem(key, legacy);
+        localStorage.removeItem(LEGACY_KEYS[name]);
+        return JSON.parse(legacy) as T;
+      }
+    }
+  } catch {
+    // Corrupted entry: fall back to the default.
+  }
+  return fallback;
+}
+
+function saveScoped<T>(userId: string, name: StorageName, value: T): void {
+  try {
+    localStorage.setItem(storageKey(userId, name), JSON.stringify(value));
   } catch (e) {
     console.warn('Failed to save to localStorage:', e);
   }
@@ -73,30 +114,26 @@ function mapBackendHistoryItem(h: any): HistoryItem {
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline';
 
 export function useStore() {
-  // Get user ID from Supabase Auth
-  const userId = api.getUserId();
+  // Storage namespace follows the signed-in user.
+  const [storageUserId, setStorageUserId] = useState(() => api.getUserId());
+  const storageUserIdRef = useRef(storageUserId);
 
   // Local state (source of truth for UI)
-  const [queue, setQueue] = useState<QueueItem[]>(() => loadFromStorage(STORAGE_KEYS.queue, []));
-  const [history, setHistory] = useState<HistoryItem[]>(() => loadFromStorage(STORAGE_KEYS.history, []));
-  const [swipedIds, setSwipedIds] = useState<string[]>(() => loadFromStorage(STORAGE_KEYS.swiped, []));
-  const [customRecipes, setCustomRecipes] = useState<Recipe[]>(() => loadFromStorage(STORAGE_KEYS.customRecipes, []));
+  const [queue, setQueue] = useState<QueueItem[]>(() => loadScoped(storageUserId, 'queue', []));
+  const [history, setHistory] = useState<HistoryItem[]>(() => loadScoped(storageUserId, 'history', []));
+  const [swipedIds, setSwipedIds] = useState<string[]>(() => loadScoped(storageUserId, 'swiped', []));
+  const [customRecipes, setCustomRecipes] = useState<Recipe[]>(() => loadScoped(storageUserId, 'customRecipes', []));
   // Full recipe catalog from the backend (recipes table + built-ins). Backend
   // rows override the bundled ones, so edits in Supabase show up in the app.
-  const [remoteRecipes, setRemoteRecipes] = useState<Recipe[]>(() => loadFromStorage(STORAGE_KEYS.remoteRecipes, []));
+  const [remoteRecipes, setRemoteRecipes] = useState<Recipe[]>(() => loadScoped(storageUserId, 'remoteRecipes', []));
   const [preferences, setPreferencesState] = useState<UserPreferences>(() =>
-    loadFromStorage(STORAGE_KEYS.preferences, {
-      maxCalories: 800,
-      maxCookTime: 60,
-      excludeTags: [],
-      preferredDifficulty: ['easy', 'medium', 'hard'],
-    })
+    loadScoped(storageUserId, 'preferences', DEFAULT_PREFERENCES)
   );
 
   // Sync state
-  const [syncEnabled, setSyncEnabled] = useState(() => loadFromStorage(STORAGE_KEYS.syncEnabled, true));
+  const [syncEnabled, setSyncEnabled] = useState(() => loadScoped(storageUserId, 'syncEnabled', true));
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
-  const [lastSync, setLastSync] = useState<string | null>(() => loadFromStorage(STORAGE_KEYS.lastSync, null));
+  const [lastSync, setLastSync] = useState<string | null>(() => loadScoped(storageUserId, 'lastSync', null));
   const [backendAvailable, setBackendAvailable] = useState<boolean | null>(null);
 
   // All recipes: bundled defaults, overridden by backend catalog, plus custom.
@@ -108,14 +145,34 @@ export function useStore() {
     return [...byId.values()];
   })();
 
-  // Persist to localStorage
-  useEffect(() => saveToStorage(STORAGE_KEYS.queue, queue), [queue]);
-  useEffect(() => saveToStorage(STORAGE_KEYS.history, history), [history]);
-  useEffect(() => saveToStorage(STORAGE_KEYS.swiped, swipedIds), [swipedIds]);
-  useEffect(() => saveToStorage(STORAGE_KEYS.customRecipes, customRecipes), [customRecipes]);
-  useEffect(() => saveToStorage(STORAGE_KEYS.remoteRecipes, remoteRecipes), [remoteRecipes]);
-  useEffect(() => saveToStorage(STORAGE_KEYS.preferences, preferences), [preferences]);
-  useEffect(() => saveToStorage(STORAGE_KEYS.syncEnabled, syncEnabled), [syncEnabled]);
+  // Switch the storage namespace. Called when the signed-in user changes so a
+  // new account never inherits the previous one's cached queue/history/swipes.
+  const setUser = useCallback((nextUserId: string) => {
+    const normalized = nextUserId || '';
+    if (storageUserIdRef.current === normalized) return;
+
+    storageUserIdRef.current = normalized;
+    setStorageUserId(normalized);
+    setQueue(loadScoped(normalized, 'queue', []));
+    setHistory(loadScoped(normalized, 'history', []));
+    setSwipedIds(loadScoped(normalized, 'swiped', []));
+    setCustomRecipes(loadScoped(normalized, 'customRecipes', []));
+    setRemoteRecipes(loadScoped(normalized, 'remoteRecipes', []));
+    setPreferencesState(loadScoped(normalized, 'preferences', DEFAULT_PREFERENCES));
+    setSyncEnabled(loadScoped(normalized, 'syncEnabled', true));
+    setLastSync(loadScoped(normalized, 'lastSync', null));
+    setSyncStatus('idle');
+    setBackendAvailable(null);
+  }, []);
+
+  // Persist to localStorage (per user)
+  useEffect(() => saveScoped(storageUserId, 'queue', queue), [storageUserId, queue]);
+  useEffect(() => saveScoped(storageUserId, 'history', history), [storageUserId, history]);
+  useEffect(() => saveScoped(storageUserId, 'swiped', swipedIds), [storageUserId, swipedIds]);
+  useEffect(() => saveScoped(storageUserId, 'customRecipes', customRecipes), [storageUserId, customRecipes]);
+  useEffect(() => saveScoped(storageUserId, 'remoteRecipes', remoteRecipes), [storageUserId, remoteRecipes]);
+  useEffect(() => saveScoped(storageUserId, 'preferences', preferences), [storageUserId, preferences]);
+  useEffect(() => saveScoped(storageUserId, 'syncEnabled', syncEnabled), [storageUserId, syncEnabled]);
 
   // Check backend availability on mount
   useEffect(() => {
@@ -184,7 +241,7 @@ export function useStore() {
 
       const now = new Date().toISOString();
       setLastSync(now);
-      saveToStorage(STORAGE_KEYS.lastSync, now);
+      saveScoped(api.getUserId(), 'lastSync', now);
       setSyncStatus('idle');
     } catch (error) {
       console.error('Sync failed:', error);
@@ -433,5 +490,6 @@ export function useStore() {
     toggleSync,
     manualSync,
     syncFromBackend,
+    setUser,
   };
 }

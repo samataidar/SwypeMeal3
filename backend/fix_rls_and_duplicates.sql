@@ -5,17 +5,11 @@
 -- 1. ИСПРАВЛЕНИЕ БЕСКОНЕЧНОЙ РЕКУРСИИ В RLS
 -- ============================================
 
--- Проблема: политика "Admins can view all roles" вызывает саму себя
--- Решение: отключить RLS для user_roles и pending_recipes
--- Backend использует service_role key, поэтому это безопасно
+-- ВНИМАНИЕ: скрипт исторический. RLS больше НЕ отключается — актуальные
+-- политики в backend/enable_rls.sql. Здесь остаются только удаление старых
+-- политик, функции upsert и очистка дубликатов.
 
--- Отключаем RLS для user_roles
-ALTER TABLE user_roles DISABLE ROW LEVEL SECURITY;
-
--- Отключаем RLS для pending_recipes
-ALTER TABLE pending_recipes DISABLE ROW LEVEL SECURITY;
-
--- Удаляем старые политики (если есть)
+-- Старые политики удаляем, чтобы не было рекурсии.
 DROP POLICY IF EXISTS "Users can view their own role" ON user_roles;
 DROP POLICY IF EXISTS "Admins can view all roles" ON user_roles;
 DROP POLICY IF EXISTS "Users can submit recipes" ON pending_recipes;

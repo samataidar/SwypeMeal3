@@ -104,6 +104,15 @@ CREATE TRIGGER update_recipes_updated_at BEFORE UPDATE ON recipes
 CREATE TRIGGER update_user_preferences_updated_at BEFORE UPDATE ON user_preferences
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- Безопасность: включаем RLS (secure by default).
+-- Политики доступа — в backend/enable_rls.sql, выполните его следом.
+ALTER TABLE users            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE recipes          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE queue_items      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE history_items    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE swiped_recipes   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
+
 -- Вставка начальных рецептов (опционально)
 INSERT INTO recipes (id, title, description, image, cook_time, servings, calories, protein, fat, carbs, ingredients, steps, tags, difficulty)
 VALUES 
