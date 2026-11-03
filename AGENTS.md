@@ -56,10 +56,25 @@ Smoke-тесты FastAPI через `TestClient` (file storage + `ALLOW_INSECURE
 React 18 + TS + Vite (Vercel)
   ├── Supabase Auth (Google OAuth) → access token
   ├── localStorage (кэш состояния)
-  └── REST → FastAPI (Render)
-                ├── Supabase REST API (service_role)
-                └── backend/data/*.json (fallback)
+  └── /api/* → Vercel rewrite → FastAPI (Render)
+                                  ├── Supabase REST API (service_role)
+                                  └── backend/data/*.json (fallback)
 ```
+
+### Доступ из России
+
+`swypemeal.onrender.com` и `images.unsplash.com` блокируются частью российских
+провайдеров: TCP-соединение устанавливается, но TLS/HTTP зависает и фронтенд
+получает `AbortError` по таймауту. Поэтому в production нельзя обращаться к
+Render напрямую.
+
+- `vercel.json` проксирует `/api/*` на Render и `/images/*` на Unsplash.
+- `src/api.ts` в production использует same-origin (`API_URL = ''`).
+- `src/utils/imageUrl.ts` переводит `https://images.unsplash.com/...` в
+  `/images/...`.
+- В dev-режиме те же пути проксирует Vite (`vite.config.js`).
+
+Если меняется домен backend — обновить `destination` в `vercel.json`.
 
 ### Frontend
 
@@ -149,7 +164,7 @@ print("OK")
 |---|---|
 | `VITE_SUPABASE_URL` | URL проекта Supabase |
 | `VITE_SUPABASE_ANON_KEY` | Публичный anon-ключ |
-| `VITE_API_URL` | URL backend (Render) |
+| `VITE_API_URL` | Локальный backend для dev; в production игнорируется |
 | `VITE_SITE_URL` | Redirect URL для OAuth |
 | `VITE_CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name |
 | `VITE_CLOUDINARY_UPLOAD_PRESET` | Unsigned upload preset |
@@ -208,7 +223,8 @@ print("OK")
 
 ## 6. Следующие шаги
 
-1. Закоммитить текущий cleanup (мёртвый код, зависимости, docs, AGENTS.md).
+1. Задеплоить `vercel.json` и проверить `https://swypemeal.ru/api/health`
+   без VPN, а также вход и админ-панель.
 2. Смержить `fix/backend-auth-security` в `main` после ревью PR.
 3. Блок RLS:
    - написать `backend/enable_rls.sql` с политиками;
@@ -235,6 +251,10 @@ print("OK")
   URL Configuration, иначе вход с preview-домена не сработает.
 - **Render Free:** файловая система эфемерная; без Supabase данные JSON
   теряются при рестарте.
+- **Блокировки в РФ:** не обращайтесь к `*.onrender.com` и
+  `images.unsplash.com` напрямую из браузера. Используйте same-origin
+  `/api/*` и `/images/*`, которые проксирует Vercel. Проверка:
+  `curl https://swypemeal.ru/api/health`.
 - **ID очереди:** локальный optimistic ID (`Date.now()...`) заменяется на
   серверный только после `syncFromBackend()`. Учитывайте это при действиях
   сразу после добавления.

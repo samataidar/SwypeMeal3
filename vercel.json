@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://swypemeal.onrender.com/api/:path*"
+    },
+    {
+      "source": "/images/:path*",
+      "destination": "https://images.unsplash.com/:path*"
+    }
+  ]
+}

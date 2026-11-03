@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Recipe } from '../types';
+import { resolveImageUrl } from '../utils/imageUrl';
 import { Heart, X, Clock, Flame, Info, RotateCcw } from 'lucide-react';
 
 interface SwipeCardProps {
@@ -43,7 +44,7 @@ function SwipeCard({ recipe, onSwipeLeft, onSwipeRight, onInfo, isTop, offsetX }
       {/* Image area */}
       <div className="relative h-48 bg-gradient-to-br from-orange-50 to-amber-50 overflow-hidden">
         <img 
-          src={recipe.image} 
+          src={resolveImageUrl(recipe.image)}
           alt={recipe.title}
           className="w-full h-full object-cover select-none"
           draggable={false}
@@ -323,7 +324,7 @@ function RecipeDetail({ recipe, onClose }: { recipe: Recipe; onClose: () => void
         <div className="p-6">
       <div className="text-center mb-4">
         <img 
-          src={recipe.image} 
+          src={resolveImageUrl(recipe.image)}
           alt={recipe.title}
           className="w-full h-48 object-cover rounded-2xl"
         />
