@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import os
 import json
+import base64
 from datetime import datetime
 import uuid
 import hashlib
@@ -1212,6 +1213,27 @@ _health_cache_lock = threading.Lock()
 _HEALTH_CACHE_TTL_SECONDS = 10.0
 
 
+def _supabase_key_role() -> str:
+    """Role encoded in the Supabase key.
+
+    Used as a health hint: with RLS enabled the backend must run with a
+    service_role key (it bypasses RLS), otherwise reads come back empty and
+    writes are rejected. Only the JWT payload role is read, never the key.
+    """
+    key = SUPABASE_KEY
+    if key.startswith("sb_secret_"):
+        return "service_role"
+    if key.startswith("sb_publishable_"):
+        return "anon"
+    try:
+        payload = key.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        data = json.loads(base64.urlsafe_b64decode(payload))
+        return str(data.get("role", "unknown"))
+    except Exception:
+        return "unknown"
+
+
 @app.get("/api/health")
 def health_check():
     global _health_cache
@@ -1224,11 +1246,19 @@ def health_check():
     if USE_SUPABASE and supabase:
         try:
             supabase.test_connection()
-            payload = {"status": "healthy", "database": "connected"}
+            payload = {
+                "status": "healthy",
+                "database": "connected",
+                "supabase_key_role": _supabase_key_role(),
+            }
         except Exception as e:
-            payload = {"status": "unhealthy", "database": str(e)}
+            payload = {
+                "status": "unhealthy",
+                "database": str(e),
+                "supabase_key_role": _supabase_key_role(),
+            }
     else:
-        payload = {"status": "healthy", "database": "file_storage"}
+        payload = {"status": "healthy", "database": "file_storage", "supabase_key_role": "none"}
 
     with _health_cache_lock:
         _health_cache = (time.monotonic() + _HEALTH_CACHE_TTL_SECONDS, payload)
