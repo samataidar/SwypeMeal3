@@ -171,7 +171,11 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
     startXRef.current = e.clientX;
     startYRef.current = e.clientY;
     startOffsetRef.current = offsetX;
-    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    try {
+      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    } catch {
+      // Some browsers reject capture for already-released pointers.
+    }
   }, [offsetX]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
