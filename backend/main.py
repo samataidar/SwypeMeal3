@@ -1281,7 +1281,15 @@ def health_check():
                 "supabase_key_role": SUPABASE_KEY_ROLE,
             }
     else:
-        payload = {"status": "healthy", "database": "file_storage", "supabase_key_role": "none"}
+        # File storage is ephemeral on Render, so treat it as degraded in
+        # production: the frontend then keeps local data instead of syncing
+        # from an empty JSON store.
+        payload = {
+            "status": "degraded" if os.getenv("RENDER") else "healthy",
+            "database": "file_storage",
+            "supabase_key_role": "none",
+            "warning": "USE_SUPABASE is off or SUPABASE_URL/SUPABASE_KEY are missing",
+        }
 
     with _health_cache_lock:
         _health_cache = (time.monotonic() + _HEALTH_CACHE_TTL_SECONDS, payload)
