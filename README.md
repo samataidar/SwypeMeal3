@@ -1,12 +1,8 @@
 # 🍽️ SwypeMeal
 
-**Приложение для выбора рецептов методом свайпа**
+**Приложение для выбора рецептов методом свайпа.**
 
-Выбирайте блюда как в Tinder — свайпайте влево/вправо, собирайте очередь готовки, отслеживайте историю приготовленных блюд.
-
----
-
-## 🚀 Демо
+Свайпайте блюда влево/вправо, собирайте очередь готовки и отслеживайте историю приготовленного.
 
 - **Frontend:** https://swype-meal3.vercel.app/
 - **Backend API:** https://swypemeal.onrender.com/
@@ -14,414 +10,200 @@
 
 ---
 
-## ✨ Возможности
-
-### Основные функции
-
-✅ **Свайп-механика** — выбирайте рецепты свайпом влево/вправо  
-✅ **FIFO очередь** — новые рецепты добавляются в конец, готовим из начала  
-✅ **Ручное управление** — кнопки ↑/↓ для изменения порядка  
-✅ **Защита от дубликатов** — один рецепт = одна запись в очереди  
-✅ **Умная фильтрация** — рецепты из очереди не показываются в свайпе  
-✅ **Без повторов** — показанные рецепты не повторяются до сброса  
-✅ **Автоматическая нумерация** — удаление пересчитывает позиции  
-✅ **Атомарная готовка** — приготовление = удаление из очереди + добавление в историю  
-✅ **Опциональная оценка** — можно пропустить рейтинг и заметки  
-✅ **Добавление рецептов** — публикация после модерации  
-
-### Дополнительные фичи
-
-📊 **КБЖУ** — калории, белки, жиры, углеводы для каждого блюда  
-🎛️ **Фильтры** — по калориям, времени, сложности, категориям  
-📈 **Статистика** — общие калории, время, средний рейтинг  
-🗄️ **PostgreSQL** — поддержка production БД (Supabase)  
-🔄 **Синхронизация** — данные синхронизируются между устройствами  
-📱 **Telegram Mini App** — готов к интеграции  
-
----
-
-## 🏗️ Архитектура
-
-```
-┌─────────────────┐
-│   Frontend      │
-│   (Vercel)      │
-│                 │
-│  - React 18     │
-│  - TypeScript   │
-│  - Tailwind     │
-│  - localStorage │
-└────────┬────────┘
-         │
-         │ API calls (опционально)
-         │
-┌────────▼────────┐
-│   Backend       │
-│   (Render)      │
-│                 │
-│  - FastAPI      │
-│  - Python 3.12  │
-│  - SQLAlchemy   │
-└────────┬────────┘
-         │
-         │ (если USE_DATABASE=true)
-         │
-┌────────▼────────┐
-│   Supabase      │
-│   PostgreSQL    │
-│                 │
-│  - ACID         │
-│  - Backups      │
-│  - SSL          │
-└─────────────────┘
-```
-
----
-
-## 🛠️ Технологии
+## Стек
 
 ### Frontend
-- **React 18** + **TypeScript**
-- **Tailwind CSS** — стилизация
-- **Lucide React** — иконки
-- **Native Pointer Events** — свайп-механика
-- **CSS Animations** — плавные переходы
+
+- React 18 + TypeScript
+- Vite 6
+- Tailwind CSS 4
+- Lucide React (иконки)
+- Supabase JS (Auth)
+- Native Pointer Events + CSS-анимации
 
 ### Backend
-- **Python 3.12**
-- **FastAPI** — REST API
-- **Pydantic** — валидация
-- **SQLAlchemy** — ORM (для PostgreSQL)
-- **File storage** — fallback режим
 
-### База данных
-- **Supabase PostgreSQL** — production
-- **File storage (JSON)** — разработка
+- Python 3.12
+- FastAPI + Pydantic
+- httpx
+- Supabase REST API (service_role) в production
+- JSON-файлы в `backend/data/` как fallback для локальной разработки
+
+### Инфраструктура
+
+- **Frontend:** Vercel
+- **Backend:** Render
+- **База данных и Auth:** Supabase
 
 ---
 
-## 📦 Установка и запуск
+## Быстрый старт
 
 ### Frontend
 
 ```bash
-# Установка зависимостей
 npm install
-
-# Запуск в режиме разработки
+cp .env.example .env      # Windows: copy .env.example .env
 npm run dev
-
-# Сборка для production
-npm run build
 ```
 
-Откройте: http://localhost:5173
+Приложение откроется на http://localhost:3000.
+
+```bash
+npm run typecheck   # проверка TypeScript
+npm run build       # production-сборка в dist/
+```
 
 ### Backend
 
 ```bash
 cd backend
-
-# Установка зависимостей
 pip install -r requirements.txt
-
-# Запуск с file storage (по умолчанию)
+cp .env.example .env      # Windows: copy .env.example .env
 uvicorn main:app --reload --port 8000
-
-# Запуск с PostgreSQL
-DATABASE_URL="postgresql://user:pass@host/db" USE_DATABASE=true uvicorn main:app --reload
 ```
 
-API Docs: http://localhost:8000/docs
+Swagger UI: http://localhost:8000/docs
 
 ---
 
-## 🗄️ Подключение Supabase PostgreSQL
+## Переменные окружения
 
-### Быстрый старт (5 минут)
+### Frontend (`.env`)
 
-1. **Создайте таблицы в Supabase:**
-   - Откройте [SQL Editor](https://supabase.com/dashboard/project/bbelyefgpptozjfmeyqq/sql)
-   - Выполните код из `backend/init_db.sql`
+```env
+VITE_SUPABASE_URL=https://bbelyefgpptozjfmeyqq.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon-key>
+VITE_API_URL=https://swypemeal.onrender.com
+VITE_SITE_URL=https://swype-meal3.vercel.app
+VITE_CLOUDINARY_CLOUD_NAME=ylksrnxy
+VITE_CLOUDINARY_UPLOAD_PRESET=swypemeal_unsigned
+```
 
-2. **Добавьте переменные окружения на Render:**
-   ```
-   DATABASE_URL=postgresql://postgres:[PASSWORD]@db.bbelyefgpptozjfmeyqq.supabase.co:5432/postgres
-   USE_DATABASE=true
-   ```
+### Backend (`backend/.env`)
 
-3. **Задеплойте изменения:**
-   ```bash
-   git push origin main
-   ```
+```env
+SUPABASE_URL=https://bbelyefgpptozjfmeyqq.supabase.co
+SUPABASE_KEY=<service_role-key>
+USE_SUPABASE=true
+CORS_ORIGINS=https://swype-meal3.vercel.app,https://swypemeal.ru,https://www.swypemeal.ru,http://localhost:3000,http://localhost:5173
+ALLOW_INSECURE_AUTH=false
+```
 
-4. **Проверьте:**
-   ```bash
-   curl https://swypemeal.onrender.com/
-   # Должно вернуть: "storage": "PostgreSQL (Supabase)"
-   ```
-
-**Подробная инструкция:** [CONNECT_SUPABASE.md](CONNECT_SUPABASE.md)
+`SUPABASE_KEY` — только **service_role** ключ и только на сервере.
+`ALLOW_INSECURE_AUTH=true` разрешает заголовок `X-User-ID` вместо токена и
+предназначен исключительно для локальной разработки.
 
 ---
 
-## 📊 API Endpoints
+## Архитектура
 
-### Рецепты
+```
+React (Vercel)
+  ├── Supabase Auth  ──►  access token
+  └── REST API       ──►  FastAPI (Render)
+                            ├── Supabase REST API (service_role)
+                            └── backend/data/*.json (fallback)
+```
+
+- Frontend хранит состояние в `useStore` и дублирует его в `localStorage`.
+- При включённой синхронизации данные подтягиваются с backend.
+- Backend проверяет Supabase access token через `/auth/v1/user` и сверяет
+  `user_id` из пути с ID пользователя из токена.
+- Административные эндпоинты дополнительно проверяют роль `admin` в `user_roles`.
+
+---
+
+## API
+
 | Метод | Путь | Описание |
 |-------|------|----------|
 | GET | `/api/recipes` | Рецепты с фильтрацией |
 | GET | `/api/recipes/{id}` | Детали рецепта |
 | POST | `/api/recipes/submit` | Отправить рецепт на модерацию |
 | GET | `/api/recipes/custom` | Одобренные пользовательские рецепты |
-
-### Очередь
-| Метод | Путь | Описание |
-|-------|------|----------|
+| GET | `/api/recipes/pending` | Рецепты на модерации (admin) |
+| POST | `/api/recipes/{id}/approve` | Одобрить рецепт (admin) |
+| POST | `/api/recipes/{id}/reject` | Отклонить рецепт (admin) |
 | GET | `/api/queue/{user_id}` | Очередь готовки |
 | POST | `/api/queue/{user_id}` | Добавить в очередь |
 | DELETE | `/api/queue/{user_id}/{item_id}` | Удалить из очереди |
-
-### Готовка и история
-| Метод | Путь | Описание |
-|-------|------|----------|
 | POST | `/api/cook/{user_id}` | Отметить приготовленным |
 | GET | `/api/history/{user_id}` | История готовки |
 | DELETE | `/api/history/{user_id}/{item_id}` | Удалить из истории |
-
-### Свайпы и настройки
-| Метод | Путь | Описание |
-|-------|------|----------|
 | POST | `/api/swipe/{user_id}` | Записать свайп |
 | GET | `/api/preferences/{user_id}` | Настройки |
 | PUT | `/api/preferences/{user_id}` | Обновить настройки |
 | POST | `/api/reset/{user_id}` | Сбросить свайпы |
 | GET | `/api/stats/{user_id}` | Статистика |
-
-### Системные
-| Метод | Путь | Описание |
-|-------|------|----------|
+| GET | `/api/user/role/{user_id}` | Роль пользователя |
 | GET | `/` | Статус API |
-| GET | `/api/health` | Проверка здоровья БД |
-| GET | `/api/telegram/init` | Инициализация Telegram Mini App |
+| GET | `/api/health` | Проверка здоровья |
 
-**Полная документация:** https://swypemeal.onrender.com/docs
+Все пользовательские и административные эндпоинты требуют:
 
----
-
-## 📱 Telegram Mini App
-
-### Настройка
-
-1. Создайте бота через [@BotFather](https://t.me/BotFather):
-   ```
-   /newbot → SwypeMeal Bot → @swypemeal_bot
-   ```
-
-2. Настройте Web App:
-   ```
-   /setmenubutton → @swypemeal_bot → Menu → https://swype-meal3.vercel.app
-   ```
-
-3. Готово! Бот будет открывать ваше приложение.
+```http
+Authorization: Bearer <supabase_access_token>
+```
 
 ---
 
-## 🔄 Режимы работы
-
-### Режим 1: Только localStorage (по умолчанию)
-
-✅ Данные сохраняются в браузере  
-✅ Работает офлайн  
-✅ Нет синхронизации между устройствами  
-✅ Не требует backend  
-
-**Использование:** Просто откройте frontend, всё работает из коробки.
-
-### Режим 2: С синхронизацией (PostgreSQL)
-
-✅ Данные синхронизируются между устройствами  
-✅ Работает на всех устройствах  
-✅ Требует backend и БД  
-✅ Production-ready  
-
-**Использование:**
-1. Подключите Supabase (см. выше)
-2. Включите синхронизацию в настройках frontend
-3. Данные автоматически синхронизируются
-
----
-
-## 📁 Структура проекта
+## Структура проекта
 
 ```
-swypemeal/
+.
 ├── src/
-│   ├── App.tsx              # Главный компонент
-│   ├── api.ts               # API клиент для backend
-│   ├── store.ts             # State management + синхронизация
-│   ├── types.ts             # TypeScript типы
-│   ├── data.ts              # База рецептов (mock)
-│   └── components/
-│       ├── SwipeView.tsx    # Свайп-механика
-│       ├── CookQueue.tsx    # Очередь готовки (FIFO)
-│       ├── History.tsx      # История приготовленных
-│       ├── AddRecipe.tsx    # Форма добавления рецепта
-│       └── Settings.tsx     # Настройки + синхронизация
+│   ├── App.tsx                 # Главный компонент и навигация
+│   ├── main.tsx                # Точка входа
+│   ├── api.ts                  # REST-клиент backend
+│   ├── store.ts                # Состояние + синхронизация
+│   ├── data.ts                 # Встроенная база рецептов
+│   ├── types.ts                # Типы
+│   ├── components/             # UI-компоненты
+│   ├── contexts/AuthContext.tsx
+│   ├── lib/supabase.ts         # Supabase client
+│   └── utils/imageOptimizer.ts # Оптимизация изображений
 ├── backend/
-│   ├── main.py              # FastAPI сервер (с поддержкой БД)
-│   ├── database.py          # SQLAlchemy конфигурация
-│   ├── models.py            # SQLAlchemy модели
-│   ├── crud.py              # CRUD операции
-│   ├── init_db.sql          # SQL скрипт для Supabase
-│   ├── requirements.txt     # Python зависимости
-│   └── .env.example         # Шаблон переменных окружения
-├── CONNECT_SUPABASE.md      # Инструкция по подключению Supabase
-├── DATABASE.md              # Документация по БД
-├── DEPLOY_RENDER.md         # Инструкция по деплою на Render
-├── HOSTING.md               # Общая инструкция по хостингу
-└── README.md                # Этот файл
+│   ├── main.py                 # FastAPI-приложение
+│   ├── requirements.txt
+│   ├── .env.example
+│   ├── init_db.sql             # Схема БД
+│   ├── add_roles.sql           # Таблица ролей
+│   ├── create_storage_bucket.sql
+│   ├── fix_rls.sql             # Исторические SQL-исправления RLS
+│   ├── fix_rls_and_duplicates.sql
+│   └── update_images.sql       # URL изображений для seed-рецептов
+├── docs/                       # Подробные инструкции
+├── AGENTS.md                   # Контекст для нового сеанса
+├── index.html
+├── package.json
+├── render.yaml                 # Конфигурация Render
+└── vite.config.js
 ```
 
 ---
 
-## 🎯 10 ключевых требований
+## Документация
 
-✅ **1. FIFO очередь** — новые рецепты добавляются в конец, готовим из начала  
-✅ **2. Ручное управление** — кнопки ↑/↓ для изменения порядка  
-✅ **3. Защита от дубликатов** — один рецепт = одна запись в очереди  
-✅ **4. Умная фильтрация** — рецепты из очереди не показываются в свайпе  
-✅ **5. Без повторов** — показанные рецепты не повторяются до сброса  
-✅ **6. Автоматическая нумерация** — удаление пересчитывает позиции  
-✅ **7. Атомарная готовка** — приготовление = удаление из очереди + добавление в историю  
-✅ **8. Опциональная оценка** — можно пропустить рейтинг и заметки  
-✅ **9. Локальное хранение** — данные в localStorage (без синхронизации по умолчанию)  
-✅ **10. Добавление рецептов** — публикация после модерации  
+- [docs/supabase-rest-api.md](docs/supabase-rest-api.md) — как backend работает с Supabase
+- [docs/auth-setup.md](docs/auth-setup.md) — Google OAuth
+- [docs/oauth-multi-device.md](docs/oauth-multi-device.md) — OAuth на нескольких устройствах
+- [docs/roles.md](docs/roles.md) — роли и администраторы
+- [docs/rls.md](docs/rls.md) — RLS и защита данных
+- [docs/cloudinary.md](docs/cloudinary.md) — загрузка изображений
+- [docs/image-optimization.md](docs/image-optimization.md) — оптимизация изображений
+- [backend/README.md](backend/README.md) — backend API и деплой
 
 ---
 
-## 🚀 Деплой
+## Известные ограничения
 
-### Frontend на Vercel
+- RLS в Supabase пока отключён для `user_roles` и `pending_recipes`.
+- `useStore` не привязан к пользователю: ключи `localStorage` общие, данные
+  могут переходить между аккаунтами на одном устройстве.
+- `swiped_ids` не загружаются с backend при синхронизации.
+- Ручной порядок очереди хранится только локально.
+- `Promise.allSettled` в `syncFromBackend` может показать успех, даже если все
+  запросы завершились ошибкой.
 
-1. Зарегистрируйтесь на [vercel.com](https://vercel.com)
-2. Импортируйте репозиторий
-3. Настройки:
-   ```
-   Framework Preset: Vite
-   Build Command: npm run build
-   Output Directory: dist
-   ```
-4. Deploy
-
-### Backend на Render
-
-1. Зарегистрируйтесь на [render.com](https://render.com)
-2. Создайте Web Service
-3. Подключите репозиторий
-4. Настройки:
-   ```
-   Root Directory: backend
-   Build Command: pip install -r requirements.txt
-   Start Command: uvicorn main:app --host 0.0.0.0 --port $PORT
-   ```
-5. Добавьте переменные окружения:
-   ```
-   PYTHON_VERSION=3.12.7
-   DATABASE_URL=postgresql://...
-   USE_DATABASE=true
-   ```
-6. Deploy
-
-**Подробные инструкции:**
-- [DEPLOY_RENDER.md](DEPLOY_RENDER.md) — деплой на Render
-- [CONNECT_SUPABASE.md](CONNECT_SUPABASE.md) — подключение Supabase
-- [HOSTING.md](HOSTING.md) — другие варианты хостинга
-
----
-
-## 📚 Документация
-
-- **[CONNECT_SUPABASE.md](CONNECT_SUPABASE.md)** — подключение Supabase PostgreSQL
-- **[DATABASE.md](DATABASE.md)** — полная документация по БД
-- **[DEPLOY_RENDER.md](DEPLOY_RENDER.md)** — деплой на Render
-- **[HOSTING.md](HOSTING.md)** — общая инструкция по хостингу
-- **API Docs:** https://swypemeal.onrender.com/docs
-
----
-
-## 🐛 Troubleshooting
-
-### Backend показывает "File Storage" вместо "PostgreSQL"
-
-**Решение:**
-1. Проверьте переменные окружения на Render
-2. Убедитесь, что `DATABASE_URL` и `USE_DATABASE=true` добавлены
-3. Перезапустите backend
-
-### Ошибка подключения к БД
-
-**Решение:**
-1. Проверьте `DATABASE_URL` (правильный пароль, хост, порт)
-2. Убедитесь, что таблицы созданы в Supabase
-3. Проверьте логи на Render
-
-### Данные не синхронизируются
-
-**Решение:**
-1. Включите синхронизацию в настройках frontend
-2. Проверьте, что backend доступен
-3. Нажмите "Обновить" для принудительной синхронизации
-
----
-
-## 📈 Roadmap
-
-- [ ] Аутентификация пользователей (JWT)
-- [ ] Социальные функции (делиться рецептами)
-- [ ] Интеграция с доставкой продуктов
-- [ ] AI-рекомендации на основе истории
-- [ ] Мультиязычность (i18n)
-- [ ] PWA (Progressive Web App)
-- [ ] Push-уведомления
-- [ ] Экспорт/импорт рецептов
-
----
-
-## 🤝 Contributing
-
-1. Fork репозитория
-2. Создайте ветку (`git checkout -b feature/amazing-feature`)
-3. Commit изменения (`git commit -m 'Add amazing feature'`)
-4. Push (`git push origin feature/amazing-feature`)
-5. Откройте Pull Request
-
----
-
-## 📄 Лицензия
-
-MIT
-
----
-
-## 🔐 Безопасность
-
-⚠️ **Важно:** Никогда не коммитьте пароли и secrets в Git!
-
-- Используйте переменные окружения для sensitive данных
-- Добавьте `.env` в `.gitignore`
-- Регулярно меняйте пароли
-- Включите 2FA для аккаунтов
-
----
-
-## 📞 Поддержка
-
-- **Frontend:** https://swype-meal3.vercel.app/
-- **Backend:** https://swypemeal.onrender.com/
-- **API Docs:** https://swypemeal.onrender.com/docs
-- **Supabase Dashboard:** https://supabase.com/dashboard/project/bbelyefgpptozjfmeyqq
-
----
-
-**Создано с ❤️ для тех, кто устал думать "что приготовить"**
+Актуальный список задач и контекст — в [AGENTS.md](AGENTS.md).
