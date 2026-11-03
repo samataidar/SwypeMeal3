@@ -406,21 +406,46 @@ def ensure_recipe_exists(recipe: dict):
     except Exception as e:
         print(f"Warning: Could not ensure recipe exists: {e}")
 
+# Recipe catalog: the recipes table is the source of truth. Rows stored there
+# override the built-in RECIPES_DB entries with the same id, so editing a recipe
+# in Supabase is reflected in the app. Cached briefly because lookups happen per
+# queue/history item.
+_CATALOG_TTL_SECONDS = 5.0
+_catalog_cache: Optional[dict] = None
+_catalog_cached_at = 0.0
+_catalog_lock = threading.Lock()
+
+
+def get_recipe_catalog() -> dict:
+    """Return {recipe_id: recipe}. Supabase rows win over built-in recipes."""
+    global _catalog_cache, _catalog_cached_at
+
+    now = time.monotonic()
+    with _catalog_lock:
+        if _catalog_cache is not None and now - _catalog_cached_at < _CATALOG_TTL_SECONDS:
+            return _catalog_cache
+
+    catalog = {r.id: r.model_dump() for r in RECIPES_DB}
+
+    if USE_SUPABASE and supabase:
+        try:
+            rows = supabase.select("recipes", filters={"status": "approved"})
+            for row in rows:
+                if isinstance(row, dict) and row.get("id"):
+                    catalog[row["id"]] = row
+        except Exception as e:
+            print(f"[WARN] Could not load recipe catalog: {e}")
+
+    with _catalog_lock:
+        _catalog_cache = catalog
+        _catalog_cached_at = time.monotonic()
+    return catalog
+
+
 def get_recipe_by_id(recipe_id: str) -> Optional[dict]:
-    """Get recipe from in-memory DB or Supabase"""
-    # Check in-memory recipes first
-    for r in RECIPES_DB:
-        if r.id == recipe_id:
-            return r.model_dump()
-    
-    # Then check Supabase
-    try:
-        result = supabase.select("recipes", filters={"id": recipe_id})
-        if result:
-            return result[0]
-    except Exception:
-        pass
-    return None
+    """Get recipe from the catalog (Supabase overrides built-in recipes)."""
+    recipe = get_recipe_catalog().get(recipe_id)
+    return dict(recipe) if recipe else None
 
 def supabase_get_user_state(user_id: str) -> dict:
     """Load user state from Supabase (without JOINs)"""
@@ -749,36 +774,30 @@ def get_recipes(
     max_cook_time: Optional[int] = None,
     difficulty: Optional[str] = None,
     exclude_tags: Optional[str] = None,
+    include_all: bool = False,
     current_user: dict = Depends(get_current_user),
 ):
     user_id = current_user["id"]
     state = get_state(user_id)
-    recipes = RECIPES_DB.copy()
-    
-    # Добавляем одобренные пользовательские рецепты из Supabase
-    if USE_SUPABASE and supabase:
-        try:
-            custom_recipes = supabase.select("recipes", filters={"status": "approved"})
-            for cr in custom_recipes:
-                # Проверяем что рецепт ещё не добавлен
-                if not any(r.id == cr["id"] for r in recipes):
-                    recipes.append(Recipe(**cr))
-            print(f"[DEBUG] Loaded {len(custom_recipes)} custom recipes from Supabase")
-        except Exception as e:
-            print(f"[ERROR] Failed to load custom recipes: {e}")
-    
-    recipes = [r for r in recipes if r.id not in state["swiped_ids"]]
+    # Catalog already merges Supabase rows over the built-in recipes.
+    recipes = list(get_recipe_catalog().values())
+
+    if include_all:
+        # Full catalog for the client deck; filtering happens in the frontend.
+        return {"recipes": recipes, "count": len(recipes)}
+
+    recipes = [r for r in recipes if r["id"] not in state["swiped_ids"]]
     queue_ids = [q["recipe"]["id"] for q in state["queue"]]
-    recipes = [r for r in recipes if r.id not in queue_ids]
+    recipes = [r for r in recipes if r["id"] not in queue_ids]
     if max_calories:
-        recipes = [r for r in recipes if r.calories <= max_calories]
+        recipes = [r for r in recipes if r["calories"] <= max_calories]
     if max_cook_time:
-        recipes = [r for r in recipes if r.cook_time <= max_cook_time]
+        recipes = [r for r in recipes if r["cook_time"] <= max_cook_time]
     if difficulty:
-        recipes = [r for r in recipes if r.difficulty == difficulty]
+        recipes = [r for r in recipes if r["difficulty"] == difficulty]
     if exclude_tags:
         tags = exclude_tags.split(",")
-        recipes = [r for r in recipes if not any(t in r.tags for t in tags)]
+        recipes = [r for r in recipes if not any(t in r["tags"] for t in tags)]
     return {"recipes": recipes, "count": len(recipes)}
 
 @app.get("/api/recipes/custom")

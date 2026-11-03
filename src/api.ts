@@ -73,6 +73,7 @@ class ApiClient {
     maxCookTime?: number;
     difficulty?: string;
     excludeTags?: string[];
+    includeAll?: boolean;
   }) {
     const searchParams = new URLSearchParams();
     
@@ -80,6 +81,7 @@ class ApiClient {
     if (params?.maxCookTime) searchParams.append('max_cook_time', params.maxCookTime.toString());
     if (params?.difficulty) searchParams.append('difficulty', params.difficulty);
     if (params?.excludeTags?.length) searchParams.append('exclude_tags', params.excludeTags.join(','));
+    if (params?.includeAll) searchParams.append('include_all', 'true');
 
     return this.request<{ recipes: any[]; count: number }>(
       `/api/recipes?${searchParams.toString()}`
