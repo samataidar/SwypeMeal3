@@ -1,8 +1,8 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Recipe } from '../types';
 import { resolveImageUrl } from '../utils/imageUrl';
 import RecipeDetail from './RecipeDetail';
-import { Heart, X, Clock, Flame, Info, RotateCcw, ChevronUp } from 'lucide-react';
+import { Clock, Flame, RotateCcw, ChevronUp } from 'lucide-react';
 
 interface SwipeCardProps {
   recipe: Recipe;
@@ -28,7 +28,7 @@ function SwipeCard({ recipe, offsetX = 0 }: SwipeCardProps) {
   return (
     <div className="bg-white rounded-3xl shadow-2xl border border-gray-100">
       {/* Image area */}
-      <div className="relative h-48 bg-gradient-to-br from-orange-50 to-amber-50 overflow-hidden">
+      <div className="relative h-56 sm:h-64 bg-gradient-to-br from-orange-50 to-amber-50 overflow-hidden">
         <img 
           src={resolveImageUrl(recipe.image)}
           alt={recipe.title}
@@ -58,54 +58,57 @@ function SwipeCard({ recipe, offsetX = 0 }: SwipeCardProps) {
         </div>
 
         {/* Content */}
-        <div className="p-5">
-          <h3 className="text-xl font-bold text-gray-900 mb-1">{recipe.title}</h3>
-          <p className="text-sm text-gray-500 mb-3 line-clamp-2">{recipe.description}</p>
+        <div className="p-6">
+          <h3 className="text-2xl font-bold text-gray-900 mb-1">{recipe.title}</h3>
+          <p className="text-base text-gray-500 mb-3 line-clamp-2">{recipe.description}</p>
 
           {/* Stats */}
           <div className="flex items-center gap-4 mb-4">
-            <div className="flex items-center gap-1 text-sm text-gray-600">
-              <Clock size={14} className="text-orange-500" />
+            <div className="flex items-center gap-1 text-base text-gray-600">
+              <Clock size={16} className="text-orange-500" />
               <span>{recipe.cookTime} мин</span>
             </div>
-            <div className="flex items-center gap-1 text-sm text-gray-600">
-              <Flame size={14} className="text-red-500" />
+            <div className="flex items-center gap-1 text-base text-gray-600">
+              <Flame size={16} className="text-red-500" />
               <span>{recipe.calories} ккал</span>
             </div>
-            <div className="text-sm text-gray-600">
+            <div className="text-base text-gray-600">
               {recipe.servings} порц.
             </div>
           </div>
 
           {/* Macros */}
           <div className="grid grid-cols-3 gap-2 mb-4">
-            <div className="bg-blue-50 rounded-xl p-2 text-center">
+            <div className="bg-blue-50 rounded-xl p-2.5 text-center">
               <div className="text-xs text-blue-600">Белки</div>
-              <div className="text-sm font-bold text-blue-700">{recipe.protein}г</div>
+              <div className="text-base font-bold text-blue-700">{recipe.protein}г</div>
             </div>
-            <div className="bg-yellow-50 rounded-xl p-2 text-center">
+            <div className="bg-yellow-50 rounded-xl p-2.5 text-center">
               <div className="text-xs text-yellow-600">Жиры</div>
-              <div className="text-sm font-bold text-yellow-700">{recipe.fat}г</div>
+              <div className="text-base font-bold text-yellow-700">{recipe.fat}г</div>
             </div>
-            <div className="bg-green-50 rounded-xl p-2 text-center">
+            <div className="bg-green-50 rounded-xl p-2.5 text-center">
               <div className="text-xs text-green-600">Углев.</div>
-              <div className="text-sm font-bold text-green-700">{recipe.carbs}г</div>
+              <div className="text-base font-bold text-green-700">{recipe.carbs}г</div>
             </div>
           </div>
 
           {/* Tags */}
           <div className="flex flex-wrap gap-1">
             {recipe.tags.slice(0, 4).map((tag) => (
-              <span key={tag} className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">
+              <span key={tag} className="bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full text-xs">
                 #{tag}
               </span>
             ))}
           </div>
 
           {/* Hint */}
-          <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-center gap-1 text-xs text-gray-400">
-            <ChevronUp size={14} />
-            Потяните вверх или нажмите, чтобы открыть рецепт
+          <div className="mt-3 pt-3 border-t border-gray-100 text-center text-xs text-gray-400 space-y-1">
+            <div className="flex items-center justify-center gap-1">
+              <ChevronUp size={14} />
+              Нажмите или потяните вверх — полный рецепт
+            </div>
+            <div>← пропустить · в очередь →</div>
           </div>
         </div>
       </div>
@@ -237,9 +240,31 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
   };
 
   const handleButtonSwipe = (direction: 'left' | 'right') => {
-    if (currentIndex >= stableRecipes.length) return;
+    if (currentIndex >= stableRecipes.length || selectedRecipe) return;
     triggerSwipe(direction);
   };
+
+  // Keyboard support instead of on-screen buttons: ←/→ swipe, ↑/Enter details.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      if (selectedRecipe) return;
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        handleButtonSwipe('left');
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        handleButtonSwipe('right');
+      } else if (event.key === 'ArrowUp' || event.key === 'Enter') {
+        event.preventDefault();
+        openDetails();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
 
   // Handle reset - обновляем стабильный список из новых доступных рецептов
   const handleReset = () => {
@@ -273,11 +298,11 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
   const nextRecipe = currentIndex + 1 < stableRecipes.length ? stableRecipes[currentIndex + 1] : null;
 
   return (
-    <div className="flex flex-col items-center h-full px-4 py-4">
+    <div className="flex flex-col items-center h-full px-3 py-3">
       {/* Card stack */}
       <div
         ref={containerRef}
-        className="relative w-full max-w-sm flex-1 min-h-0 overflow-hidden flex items-center justify-center select-none"
+        className="relative w-full max-w-md flex-1 min-h-0 overflow-hidden flex items-center justify-center select-none"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -305,32 +330,8 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
         </div>
       </div>
 
-      {/* Action buttons */}
-      <div className="relative z-20 flex items-center justify-center gap-6 mt-6 mb-4">
-        <button
-          onClick={() => handleButtonSwipe('left')}
-          className="w-16 h-16 bg-white rounded-full shadow-lg flex items-center justify-center border-2 border-red-200 hover:border-red-400 hover:bg-red-50 active:scale-95 transition-all"
-        >
-          <X size={28} className="text-red-500" />
-        </button>
-
-        <button
-          onClick={() => setSelectedRecipe(currentRecipe)}
-          className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50 active:scale-95 transition-all"
-        >
-          <Info size={20} className="text-blue-500" />
-        </button>
-
-        <button
-          onClick={() => handleButtonSwipe('right')}
-          className="w-16 h-16 bg-white rounded-full shadow-lg flex items-center justify-center border-2 border-green-200 hover:border-green-400 hover:bg-green-50 active:scale-95 transition-all"
-        >
-          <Heart size={28} className="text-green-500" />
-        </button>
-      </div>
-
       {/* Progress */}
-      <div className="text-sm text-gray-400 mb-2">
+      <div className="text-xs text-gray-400 mt-2 mb-1">
         {currentIndex + 1} из {stableRecipes.length}
       </div>
 
