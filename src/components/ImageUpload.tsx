@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Upload, X, Loader2 } from 'lucide-react';
 import { optimizeImage, formatFileSize } from '../utils/imageOptimizer';
+import { resolveImageUrl } from '../utils/imageUrl';
 
 interface ImageUploadProps {
   value: string;
@@ -153,7 +154,7 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
         // Preview with remove button
         <div className="relative group">
           <img
-            src={value}
+            src={resolveImageUrl(value)}
             alt="Preview"
             className="w-full h-48 object-cover rounded-xl border border-gray-200"
           />

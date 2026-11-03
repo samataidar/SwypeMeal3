@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
+import { resolveImageUrl } from '../utils/imageUrl';
 import { Check, X, Clock, MessageSquare, Loader2 } from 'lucide-react';
 
 interface PendingRecipe {
@@ -107,7 +108,7 @@ export default function AdminPanel() {
             >
               <div className="flex gap-4 p-4">
                 <img
-                  src={recipe.image}
+                  src={resolveImageUrl(recipe.image)}
                   alt={recipe.title}
                   className="w-24 h-24 object-cover rounded-xl flex-shrink-0"
                 />
@@ -192,7 +193,7 @@ export default function AdminPanel() {
           >
             <div className="p-6">
               <img
-                src={selectedRecipe.image}
+                src={resolveImageUrl(selectedRecipe.image)}
                 alt={selectedRecipe.title}
                 className="w-full h-48 object-cover rounded-2xl mb-4"
               />

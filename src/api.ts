@@ -5,7 +5,13 @@
 
 import { supabase } from './lib/supabase';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://swypemeal.onrender.com';
+// In production all API requests go to the same origin:
+//   browser -> swypemeal.ru/api -> Vercel rewrite -> Render
+// This keeps the app working from networks where onrender.com is blocked.
+// In development Vite proxies /api to the local backend (see vite.config.js).
+const API_URL = import.meta.env.DEV
+  ? (import.meta.env.VITE_API_URL || 'http://localhost:8000')
+  : '';
 const REQUEST_TIMEOUT_MS = 60000;
 
 class ApiClient {
@@ -229,7 +235,7 @@ class ApiClient {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
-      const response = await fetch(`${API_URL}/`, { signal: controller.signal });
+      const response = await fetch(`${API_URL}/api/health`, { signal: controller.signal });
       return response.ok;
     } catch {
       return false;

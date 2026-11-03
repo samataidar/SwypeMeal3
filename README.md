@@ -74,11 +74,15 @@ Swagger UI: http://localhost:8000/docs
 ```env
 VITE_SUPABASE_URL=https://bbelyefgpptozjfmeyqq.supabase.co
 VITE_SUPABASE_ANON_KEY=<anon-key>
-VITE_API_URL=https://swypemeal.onrender.com
+VITE_API_URL=http://localhost:8000
 VITE_SITE_URL=https://swype-meal3.vercel.app
 VITE_CLOUDINARY_CLOUD_NAME=ylksrnxy
 VITE_CLOUDINARY_UPLOAD_PRESET=swypemeal_unsigned
 ```
+
+`VITE_API_URL` используется только в dev-режиме. В production фронтенд
+обращается к своему origin (`/api/...`), а Vercel проксирует запросы на Render
+через `vercel.json`.
 
 ### Backend (`backend/.env`)
 
@@ -101,10 +105,23 @@ ALLOW_INSECURE_AUTH=false
 ```
 React (Vercel)
   ├── Supabase Auth  ──►  access token
-  └── REST API       ──►  FastAPI (Render)
-                            ├── Supabase REST API (service_role)
-                            └── backend/data/*.json (fallback)
+  └── /api/*  ──►  Vercel rewrite  ──►  FastAPI (Render)
+                                          ├── Supabase REST API (service_role)
+                                          └── backend/data/*.json (fallback)
 ```
+
+### Почему API идёт через Vercel
+
+`swypemeal.onrender.com` и `images.unsplash.com` блокируются частью российских
+провайдеров (TLS-соединение сбрасывается). Поэтому production-фронтенд не
+обращается к Render напрямую:
+
+- `/api/*` проксируется Vercel на Render (`vercel.json`);
+- `/images/*` проксируется Vercel на Unsplash (`vercel.json`);
+- frontend всегда использует same-origin URL, поэтому работает и на
+  `swypemeal.ru`, и на `swype-meal3.vercel.app`, и на preview-доменах.
+
+Если backend переедет на другой домен, обновите `destination` в `vercel.json`.
 
 - Frontend хранит состояние в `useStore` и дублирует его в `localStorage`.
 - При включённой синхронизации данные подтягиваются с backend.
@@ -162,7 +179,8 @@ Authorization: Bearer <supabase_access_token>
 │   ├── components/             # UI-компоненты
 │   ├── contexts/AuthContext.tsx
 │   ├── lib/supabase.ts         # Supabase client
-│   └── utils/imageOptimizer.ts # Оптимизация изображений
+│   ├── utils/imageOptimizer.ts # Оптимизация изображений
+│   └── utils/imageUrl.ts       # Проксирование Unsplash через /images
 ├── backend/
 │   ├── main.py                 # FastAPI-приложение
 │   ├── requirements.txt
@@ -178,7 +196,8 @@ Authorization: Bearer <supabase_access_token>
 ├── index.html
 ├── package.json
 ├── render.yaml                 # Конфигурация Render
-└── vite.config.js
+├── vercel.json                 # Rewrites /api и /images
+└── vite.config.js              # Dev-прокси /api и /images
 ```
 
 ---
