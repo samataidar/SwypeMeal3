@@ -57,12 +57,18 @@
 ```bash
 # 1. Backend работает как раньше (service_role обходит RLS)
 curl https://swypemeal.ru/api/health
+# ожидается: {"status":"healthy","database":"connected","supabase_key_role":"service_role"}
 
 # 2. Прямой доступ anon-ключом должен вернуть только разрешённые строки:
 #    для queue_items без JWT — пустой массив, а не чужие данные.
 curl "https://<project>.supabase.co/rest/v1/queue_items?select=*" \
   -H "apikey: <anon-key>" -H "Authorization: Bearer <anon-key>"
 ```
+
+Если `health` вернул `"supabase_key_role":"anon"` и `"status":"unhealthy"` —
+на backend стоит anon-ключ. С включённым RLS он видит пустые таблицы и не может
+писать: в приложении данные «сбрасываются» после перезагрузки. Поставьте в
+Render → Environment `SUPABASE_KEY` = **service_role** и перезапустите сервис.
 
 И в приложении:
 

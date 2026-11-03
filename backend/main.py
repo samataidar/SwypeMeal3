@@ -54,11 +54,42 @@ AUTH_ENABLED = bool(SUPABASE_URL and SUPABASE_KEY)
 # Local development escape hatch. Never enable in production.
 ALLOW_INSECURE_AUTH = os.getenv("ALLOW_INSECURE_AUTH", "false").lower() == "true"
 
+
+def _supabase_key_role(key: str = "") -> str:
+    """Role encoded in the Supabase key (JWT payload only, never the secret).
+
+    With RLS enabled the backend must run with a service_role key: it bypasses
+    RLS. An anon key sees only rows matching `auth.uid()`, which is NULL for
+    server-side calls, so reads come back empty and writes are rejected.
+    """
+    key = key or SUPABASE_KEY
+    if key.startswith("sb_secret_"):
+        return "service_role"
+    if key.startswith("sb_publishable_"):
+        return "anon"
+    try:
+        payload = key.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        data = json.loads(base64.urlsafe_b64decode(payload))
+        return str(data.get("role", "unknown"))
+    except Exception:
+        return "unknown"
+
+
+SUPABASE_KEY_ROLE = _supabase_key_role()
+
 print(f"[DEBUG] SUPABASE_URL: {'SET' if SUPABASE_URL else 'NOT SET'}")
 print(f"[DEBUG] SUPABASE_KEY: {'SET' if SUPABASE_KEY else 'NOT SET'}")
+print(f"[DEBUG] SUPABASE_KEY_ROLE: {SUPABASE_KEY_ROLE}")
 print(f"[DEBUG] USE_SUPABASE: {USE_SUPABASE}")
 print(f"[DEBUG] AUTH_ENABLED: {AUTH_ENABLED}")
 print(f"[DEBUG] ALLOW_INSECURE_AUTH: {ALLOW_INSECURE_AUTH}")
+
+if USE_SUPABASE and SUPABASE_KEY_ROLE == "anon":
+    print(
+        "[ERROR] SUPABASE_KEY has role 'anon'. With RLS enabled the backend "
+        "cannot read or write user data. Set SUPABASE_KEY to the service_role key."
+    )
 
 # ============================================
 # Shared HTTP client
@@ -88,9 +119,18 @@ class SupabaseClient:
             "Content-Type": "application/json",
             "Prefer": "return=representation",
         }
-    
+
+    def _check_key(self) -> None:
+        """Refuse to touch user data with a key that RLS will block anyway."""
+        if SUPABASE_KEY_ROLE == "anon":
+            raise Exception(
+                "SUPABASE_KEY has role 'anon'; the backend needs the service_role key "
+                "to bypass RLS"
+            )
+
     def _request(self, method: str, path: str, **kwargs) -> dict:
         """Make a request to Supabase REST API"""
+        self._check_key()
         url = f"{self.rest_url}{path}"
         response = _http_client.request(method, url, headers=self.headers, **kwargs)
         if response.status_code >= 400:
@@ -119,6 +159,7 @@ class SupabaseClient:
     
     def upsert(self, table: str, data: dict, on_conflict: str = None) -> dict:
         """Upsert a record using POST with Prefer header"""
+        self._check_key()
         headers = {**self.headers, "Prefer": "return=representation,resolution=merge-duplicates"}
         params = {}
         if on_conflict:
@@ -1213,27 +1254,6 @@ _health_cache_lock = threading.Lock()
 _HEALTH_CACHE_TTL_SECONDS = 10.0
 
 
-def _supabase_key_role() -> str:
-    """Role encoded in the Supabase key.
-
-    Used as a health hint: with RLS enabled the backend must run with a
-    service_role key (it bypasses RLS), otherwise reads come back empty and
-    writes are rejected. Only the JWT payload role is read, never the key.
-    """
-    key = SUPABASE_KEY
-    if key.startswith("sb_secret_"):
-        return "service_role"
-    if key.startswith("sb_publishable_"):
-        return "anon"
-    try:
-        payload = key.split(".")[1]
-        payload += "=" * (-len(payload) % 4)
-        data = json.loads(base64.urlsafe_b64decode(payload))
-        return str(data.get("role", "unknown"))
-    except Exception:
-        return "unknown"
-
-
 @app.get("/api/health")
 def health_check():
     global _health_cache
@@ -1245,17 +1265,20 @@ def health_check():
 
     if USE_SUPABASE and supabase:
         try:
-            supabase.test_connection()
+            if not supabase.test_connection():
+                raise RuntimeError("database connection test failed")
             payload = {
                 "status": "healthy",
                 "database": "connected",
-                "supabase_key_role": _supabase_key_role(),
+                "supabase_key_role": SUPABASE_KEY_ROLE,
             }
         except Exception as e:
+            # A misconfigured key (e.g. anon + RLS) must be visible, not silent:
+            # the frontend keeps local data when the backend reports unhealthy.
             payload = {
                 "status": "unhealthy",
                 "database": str(e),
-                "supabase_key_role": _supabase_key_role(),
+                "supabase_key_role": SUPABASE_KEY_ROLE,
             }
     else:
         payload = {"status": "healthy", "database": "file_storage", "supabase_key_role": "none"}
