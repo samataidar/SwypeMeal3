@@ -3,20 +3,35 @@
 Документ описывает текущее состояние проекта SwypeMeal, чтобы новый сеанс мог
 продолжить работу без повторного аудита. Обновляйте его при значимых изменениях.
 
-Дата последнего обновления: 2026-11-02.
+Дата последнего обновления: 2026-11-03.
 
 ---
 
 ## 1. Текущее состояние git
 
-- Ветка: `fix/backend-auth-security`
-- HEAD: `1eae4a2` — `fix: secure backend API and repair cook/swipe sync`
-- Ветка запушена в `origin/fix/backend-auth-security`
-- PR: https://github.com/samataidar/SwypeMeal3/pull/new/fix/backend-auth-security
-- `origin/main` содержит 4 коммита, которых нет в базовой ветке; конфликтов по
-  затронутым файлам не ожидается.
-- Cleanup мёртвого кода, лишних зависимостей и документации выполнен отдельным
-  коммитом в этой же ветке (см. `git log`).
+- `origin/main` = `5b66974` — merge `fix/backend-auth-security`; задеплоен на
+  `https://swypemeal.ru`.
+- Ветка `fix/backend-auth-security`: `90ca430` —
+  `fix: proxy API and Unsplash images through Vercel for RU access`.
+- Ветка `main` смержена и запушена, PR можно закрыть.
+- Ветка `fix/backend-auth-security` содержит также `1eae4a2` (auth/security) и
+  `2aa9268` (cleanup мёртвого кода и документации).
+
+### Что сделано в `90ca430` (доступ из РФ)
+
+- `vercel.json`: `/api/*` → `https://swypemeal.onrender.com/api/*`,
+  `/images/*` → `https://images.unsplash.com/*`.
+- `src/api.ts`: в production `API_URL = ''` (same-origin), `VITE_API_URL`
+  используется только в dev; health-check → `/api/health`.
+- `src/utils/imageUrl.ts`: `resolveImageUrl()` переводит Unsplash-URL в
+  `/images/...`; применён в SwipeView, CookQueue, History, AdminPanel,
+  ImageUpload.
+- `vite.config.js`: dev-прокси `/api` и `/images`.
+- Проверено на production без VPN: `/api/health` → `200`
+  `{"status":"healthy","database":"connected"}`, `/images/...` → `200 image/jpeg`,
+  заголовок `Authorization` доходит до backend (битый токен →
+  `{"detail":"Invalid or expired token"}`), приложение грузится без ошибок в
+  консоли.
 
 ### Что уже сделано в `1eae4a2`
 
@@ -223,16 +238,16 @@ print("OK")
 
 ## 6. Следующие шаги
 
-1. Задеплоить `vercel.json` и проверить `https://swypemeal.ru/api/health`
-   без VPN, а также вход и админ-панель.
-2. Смержить `fix/backend-auth-security` в `main` после ревью PR.
-3. Блок RLS:
+1. Проверить вход и админ-панель на `https://swypemeal.ru` без VPN (деплой
+   `5b66974` уже содержит прокси; API, картинки и заголовок `Authorization`
+   проверены, живой вход — за владельцем аккаунта).
+2. Блок RLS:
    - написать `backend/enable_rls.sql` с политиками;
    - убрать отключение RLS из старых скриптов или пометить их как исторические;
    - проверить доступ anon-ключом и service_role.
-4. Привязать `localStorage` к `user.id`.
-5. Доработать синхронизацию: `swiped_ids`, порядок очереди, обработка ошибок.
-6. Добавить тесты и CI (`typecheck`, `build`, `py_compile`, pytest).
+3. Привязать `localStorage` к `user.id`.
+4. Доработать синхронизацию: `swiped_ids`, порядок очереди, обработка ошибок.
+5. Добавить тесты и CI (`typecheck`, `build`, `py_compile`, pytest).
 
 ---
 
