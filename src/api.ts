@@ -5,6 +5,9 @@
 
 import { supabase } from './lib/supabase';
 
+// Avoid a storm of signOut calls when several requests fail with 401 at once.
+let signOutScheduled = false;
+
 // In production all API requests go to the same origin:
 //   browser -> swypemeal.ru/api -> Vercel rewrite -> Render
 // This keeps the app working from networks where onrender.com is blocked.
@@ -37,7 +40,7 @@ class ApiClient {
       : {};
   }
 
-  private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  private async request<T>(endpoint: string, options?: RequestInit, isRetry = false): Promise<T> {
     const url = `${API_URL}${endpoint}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -53,6 +56,23 @@ class ApiClient {
           ...options?.headers,
         },
       });
+
+      // A 401 usually means the access token was revoked or the session expired.
+      // Try one silent refresh, and if that fails, drop the dead session so the
+      // app returns to the login screen instead of silently losing data.
+      if (response.status === 401) {
+        if (!isRetry) {
+          const { data } = await supabase.auth.refreshSession();
+          if (data.session) {
+            return this.request<T>(endpoint, options, true);
+          }
+        }
+        if (!signOutScheduled) {
+          signOutScheduled = true;
+          supabase.auth.signOut().catch(() => undefined);
+        }
+        throw new Error('API Error: 401 Unauthorized');
+      }
 
       if (!response.ok) {
         throw new Error(`API Error: ${response.status} ${response.statusText}`);
