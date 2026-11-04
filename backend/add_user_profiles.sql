@@ -19,6 +19,16 @@ alter table public.recipes add column if not exists author_name text;
 -- Имя автора для админской очереди модерации (не публично).
 alter table public.pending_recipes add column if not exists author_name text;
 
+-- Бэкфилл имени автора для уже одобренных рецептов.
+-- Профили заполняются при входе пользователя (POST /api/me), поэтому этот
+-- блок имеет смысл запускать повторно после того, как авторы зайдут в приложение.
+update public.recipes r
+set author_name = coalesce(nullif(btrim(u.full_name), ''), split_part(u.email, '@', 1))
+from public.users u
+where r.author_id = u.id
+  and (r.author_name is null or btrim(r.author_name) = '')
+  and (u.full_name is not null or u.email is not null);
+
 -- Проверка
 select table_name, column_name
 from information_schema.columns
