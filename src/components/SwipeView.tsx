@@ -2,107 +2,114 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Recipe } from '../types';
 import { resolveImageUrl } from '../utils/imageUrl';
 import RecipeDetail from './RecipeDetail';
-import { Clock, Flame, RotateCcw } from 'lucide-react';
+import { RotateCcw, Clock, Flame, Users } from 'lucide-react';
+
+const SWIPE_THRESHOLD = 100;
+const OPEN_DETAILS_PULL = 70;
+const STACK_DEPTH = 3;
+
+const difficultyLabel: Record<Recipe['difficulty'], string> = {
+  easy: 'Легко',
+  medium: 'Средне',
+  hard: 'Сложно',
+};
 
 interface SwipeCardProps {
   recipe: Recipe;
-  offsetX?: number;
+  depth: number;
+  offsetX: number;
+  offsetY: number;
+  isDragging: boolean;
+  exiting: 'left' | 'right' | null;
 }
 
-function SwipeCard({ recipe, offsetX = 0 }: SwipeCardProps) {
-  const difficultyColor = {
-    easy: 'bg-green-100 text-green-700',
-    medium: 'bg-yellow-100 text-yellow-700',
-    hard: 'bg-red-100 text-red-700',
-  };
+function SwipeCard({ recipe, depth, offsetX, offsetY, isDragging, exiting }: SwipeCardProps) {
+  const isTop = depth === 0;
 
-  const difficultyLabel = {
-    easy: 'Легко',
-    medium: 'Средне',
-    hard: 'Сложно',
-  };
+  // Stamps fade in as the card is dragged.
+  const likeOpacity = Math.max(0, Math.min(1, offsetX / 90));
+  const nopeOpacity = Math.max(0, Math.min(1, -offsetX / 90));
+  const openOpacity = Math.max(0, Math.min(1, -offsetY / 90));
 
-  const likeOpacity = Math.max(0, Math.min(1, offsetX / 100));
-  const nopeOpacity = Math.max(0, Math.min(1, -offsetX / 100));
+  const transform = isTop
+    ? `translateX(${offsetX}px) translateY(${offsetY}px) rotate(${offsetX * 0.05}deg)`
+    : `translateY(${depth * 12}px) scale(${1 - depth * 0.05})`;
 
   return (
-    <div className="bg-white rounded-3xl shadow-2xl border border-gray-100">
-      {/* Image area */}
-      <div className="relative h-56 sm:h-64 bg-gradient-to-br from-orange-50 to-amber-50 overflow-hidden">
-        <img 
-          src={resolveImageUrl(recipe.image)}
-          alt={recipe.title}
-          className="w-full h-full object-cover select-none"
-          draggable={false}
-        />
-          {/* Like indicator */}
-          <div
-            className="absolute top-4 left-4 bg-green-500 text-white px-4 py-2 rounded-xl font-bold text-lg -rotate-12 border-4 border-green-300 pointer-events-none"
-            style={{ opacity: likeOpacity }}
-          >
-            В ОЧЕРЕДЬ!
-          </div>
+    <div
+      className="absolute inset-0 overflow-hidden rounded-[28px] bg-gray-900 shadow-2xl will-change-transform"
+      style={{
+        transform,
+        zIndex: 10 - depth,
+        opacity: isTop ? (exiting ? 0 : 1) : 1 - depth * 0.25,
+        transition:
+          isTop && isDragging
+            ? 'none'
+            : 'transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.32s ease',
+      }}
+    >
+      <img
+        src={resolveImageUrl(recipe.image)}
+        alt={recipe.title}
+        className="absolute inset-0 h-full w-full select-none object-cover"
+        draggable={false}
+      />
 
-          {/* Nope indicator */}
-          <div
-            className="absolute top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-xl font-bold text-lg rotate-12 border-4 border-red-300 pointer-events-none"
-            style={{ opacity: nopeOpacity }}
-          >
-            НЕТ
-          </div>
+      {/* Readability gradient */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/35 to-black/10" />
 
-          {/* Difficulty badge */}
-          <div className={`absolute bottom-3 right-3 px-3 py-1 rounded-full text-xs font-medium ${difficultyColor[recipe.difficulty]}`}>
-            {difficultyLabel[recipe.difficulty]}
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="p-6">
-          <h3 className="text-2xl font-bold text-gray-900 mb-1">{recipe.title}</h3>
-          <p className="text-base text-gray-500 mb-3 line-clamp-2">{recipe.description}</p>
-
-          {/* Stats */}
-          <div className="flex items-center gap-4 mb-4">
-            <div className="flex items-center gap-1 text-base text-gray-600">
-              <Clock size={16} className="text-orange-500" />
-              <span>{recipe.cookTime} мин</span>
-            </div>
-            <div className="flex items-center gap-1 text-base text-gray-600">
-              <Flame size={16} className="text-red-500" />
-              <span>{recipe.calories} ккал</span>
-            </div>
-            <div className="text-base text-gray-600">
-              {recipe.servings} порц.
-            </div>
-          </div>
-
-          {/* Macros */}
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            <div className="bg-blue-50 rounded-xl p-2.5 text-center">
-              <div className="text-xs text-blue-600">Белки</div>
-              <div className="text-base font-bold text-blue-700">{recipe.protein}г</div>
-            </div>
-            <div className="bg-yellow-50 rounded-xl p-2.5 text-center">
-              <div className="text-xs text-yellow-600">Жиры</div>
-              <div className="text-base font-bold text-yellow-700">{recipe.fat}г</div>
-            </div>
-            <div className="bg-green-50 rounded-xl p-2.5 text-center">
-              <div className="text-xs text-green-600">Углев.</div>
-              <div className="text-base font-bold text-green-700">{recipe.carbs}г</div>
-            </div>
-          </div>
-
-          {/* Tags */}
-          <div className="flex flex-wrap gap-1">
-            {recipe.tags.slice(0, 4).map((tag) => (
-              <span key={tag} className="bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full text-xs">
-                #{tag}
-              </span>
-            ))}
-          </div>
+      {/* Swipe stamps */}
+      <div
+        className="pointer-events-none absolute left-5 top-8 -rotate-12 rounded-xl border-4 border-green-400 px-3 py-1.5 text-xl font-extrabold uppercase tracking-wide text-green-400"
+        style={{ opacity: likeOpacity }}
+      >
+        В очередь
+      </div>
+      <div
+        className="pointer-events-none absolute right-5 top-8 rotate-12 rounded-xl border-4 border-red-400 px-3 py-1.5 text-xl font-extrabold uppercase tracking-wide text-red-400"
+        style={{ opacity: nopeOpacity }}
+      >
+        Нет
+      </div>
+      <div
+        className="pointer-events-none absolute inset-x-0 top-1/2 flex justify-center"
+        style={{ opacity: openOpacity }}
+      >
+        <div className="rounded-xl border-4 border-white/80 px-3 py-1.5 text-sm font-extrabold uppercase tracking-wide text-white/90">
+          Рецепт
         </div>
       </div>
+
+      {/* Bottom overlay */}
+      <div className="absolute inset-x-0 bottom-0 p-5 text-white">
+        <h2 className="text-2xl font-bold leading-tight drop-shadow-lg">{recipe.title}</h2>
+        <p className="mt-1 line-clamp-2 text-sm text-white/80">{recipe.description}</p>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 backdrop-blur-sm">
+            <Clock size={12} />
+            {recipe.cookTime} мин
+          </span>
+          <span className="flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 backdrop-blur-sm">
+            <Flame size={12} />
+            {recipe.calories} ккал
+          </span>
+          <span className="flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 backdrop-blur-sm">
+            <Users size={12} />
+            {recipe.servings} порц.
+          </span>
+          <span className="rounded-full bg-orange-500/80 px-2.5 py-1 font-medium">
+            {difficultyLabel[recipe.difficulty]}
+          </span>
+        </div>
+
+        <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+          <span className="rounded-md bg-blue-500/30 px-1.5 py-0.5">Б {recipe.protein}г</span>
+          <span className="rounded-md bg-yellow-500/30 px-1.5 py-0.5">Ж {recipe.fat}г</span>
+          <span className="rounded-md bg-green-500/30 px-1.5 py-0.5">У {recipe.carbs}г</span>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -114,8 +121,8 @@ interface SwipeViewProps {
 }
 
 export default function SwipeView({ recipes: availableRecipes, onLike, onDislike, onReset }: SwipeViewProps) {
-  // Стабилизируем список рецептов - создаем копию при монтировании
-  // и не пересоздаем при каждом изменении availableRecipes
+  // Keep the deck stable: it only resets on "Начать заново" or when it runs out
+  // and new recipes become available.
   const [stableRecipes, setStableRecipes] = useState<Recipe[]>(() => [...availableRecipes]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
@@ -127,22 +134,40 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
   const startYRef = useRef(0);
   const startOffsetRef = useRef(0);
   const movedRef = useRef(false);
-  const containerRef = useRef<HTMLDivElement>(null);
 
-  const SWIPE_THRESHOLD = 100;
-  const OPEN_DETAILS_PULL = 70;
-
-  // Обновляем стабильный список только когда пользователь нажимает "Начать заново"
-  // или когда availableRecipes становится пустым (все рецепты просмотрены)
   useEffect(() => {
-    // Если текущий список пуст и есть новые доступные рецепты - обновляем
     if (stableRecipes.length === 0 && availableRecipes.length > 0) {
       setStableRecipes([...availableRecipes]);
       setCurrentIndex(0);
     }
   }, [availableRecipes, stableRecipes.length]);
 
+  const openDetails = () => {
+    if (currentIndex < stableRecipes.length) {
+      setSelectedRecipe(stableRecipes[currentIndex]);
+    }
+  };
+
+  const triggerSwipe = (direction: 'left' | 'right') => {
+    if (exitAnim) return;
+    setExitAnim(direction);
+    setOffsetY(0);
+    setOffsetX(direction === 'right' ? 640 : -640);
+
+    setTimeout(() => {
+      if (direction === 'right') {
+        onLike(stableRecipes[currentIndex]);
+      } else {
+        onDislike(stableRecipes[currentIndex]);
+      }
+      setCurrentIndex((prev) => prev + 1);
+      setOffsetX(0);
+      setExitAnim(null);
+    }, 260);
+  };
+
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (exitAnim) return;
     setIsDragging(true);
     movedRef.current = false;
     startXRef.current = e.clientX;
@@ -153,7 +178,7 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
     } catch {
       // Some browsers reject capture for already-released pointers.
     }
-  }, [offsetX]);
+  }, [offsetX, exitAnim]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!isDragging) return;
@@ -173,12 +198,6 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
       setOffsetX(startOffsetRef.current + deltaX);
     }
   }, [isDragging]);
-
-  const openDetails = () => {
-    if (currentIndex < stableRecipes.length) {
-      setSelectedRecipe(stableRecipes[currentIndex]);
-    }
-  };
 
   const handlePointerUp = useCallback(() => {
     if (!isDragging) return;
@@ -211,31 +230,9 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
       setOffsetX(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDragging, offsetX, offsetY, currentIndex, stableRecipes]);
+  }, [isDragging, offsetX, offsetY, currentIndex, stableRecipes, exitAnim]);
 
-  const triggerSwipe = (direction: 'left' | 'right') => {
-    setExitAnim(direction);
-    setOffsetY(0);
-    setOffsetX(direction === 'right' ? 500 : -500);
-
-    setTimeout(() => {
-      if (direction === 'right') {
-        onLike(stableRecipes[currentIndex]);
-      } else {
-        onDislike(stableRecipes[currentIndex]);
-      }
-      setCurrentIndex((prev) => prev + 1);
-      setOffsetX(0);
-      setExitAnim(null);
-    }, 250);
-  };
-
-  const handleButtonSwipe = (direction: 'left' | 'right') => {
-    if (currentIndex >= stableRecipes.length || selectedRecipe) return;
-    triggerSwipe(direction);
-  };
-
-  // Keyboard support instead of on-screen buttons: ←/→ swipe, ↑/Enter details.
+  // Keyboard: ←/→ swipe, ↑/Enter open the recipe.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -244,10 +241,10 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
 
       if (event.key === 'ArrowLeft') {
         event.preventDefault();
-        handleButtonSwipe('left');
+        triggerSwipe('left');
       } else if (event.key === 'ArrowRight') {
         event.preventDefault();
-        handleButtonSwipe('right');
+        triggerSwipe('right');
       } else if (event.key === 'ArrowUp' || event.key === 'Enter') {
         event.preventDefault();
         openDetails();
@@ -257,11 +254,8 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
     return () => window.removeEventListener('keydown', onKeyDown);
   });
 
-  // Handle reset - обновляем стабильный список из новых доступных рецептов
   const handleReset = () => {
     onReset();
-    // После сброса swipedIds, availableRecipes обновится
-    // Обновляем stableRecipes при следующем рендере через useEffect
     setTimeout(() => {
       setStableRecipes([...availableRecipes]);
       setCurrentIndex(0);
@@ -270,13 +264,13 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
 
   if (stableRecipes.length === 0 || currentIndex >= stableRecipes.length) {
     return (
-      <div className="flex flex-col items-center justify-center h-full px-6 text-center">
-        <div className="text-6xl mb-4">🎉</div>
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Рецепты закончились!</h2>
-        <p className="text-gray-500 mb-6">Вы просмотрели все доступные рецепты. Сбросьте список или измените фильтры.</p>
+      <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+        <div className="mb-4 text-6xl">🎉</div>
+        <h2 className="mb-2 text-2xl font-bold text-gray-800">Рецепты закончились!</h2>
+        <p className="mb-6 text-gray-500">Вы просмотрели все доступные рецепты. Сбросьте список или измените фильтры.</p>
         <button
           onClick={handleReset}
-          className="flex items-center gap-2 bg-orange-500 text-white px-6 py-3 rounded-2xl font-medium hover:bg-orange-600 transition-colors"
+          className="flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3 font-medium text-white transition-colors hover:bg-orange-600"
         >
           <RotateCcw size={18} />
           Начать заново
@@ -285,48 +279,37 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
     );
   }
 
-  const currentRecipe = stableRecipes[currentIndex];
-  const nextRecipe = currentIndex + 1 < stableRecipes.length ? stableRecipes[currentIndex + 1] : null;
+  const visibleCards = stableRecipes.slice(currentIndex, currentIndex + STACK_DEPTH);
 
   return (
-    <div className="flex flex-col items-center h-full px-3 py-3">
-      {/* Card stack */}
+    <div className="flex h-full flex-col px-3 pb-2 pt-2">
       <div
-        ref={containerRef}
-        className="relative w-full flex-1 min-h-0 overflow-hidden flex items-center justify-center select-none"
+        className="relative flex-1 min-h-0 cursor-grab touch-none active:cursor-grabbing"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         style={{ touchAction: 'pan-y' }}
       >
-        {/* Background card (decorative) */}
-        {nextRecipe && (
-          <div
-            aria-hidden
-            className="absolute inset-x-3 inset-y-3 rounded-3xl bg-white/70 border border-gray-100 shadow-sm"
-          />
-        )}
-
-        {/* Current card */}
-        <div
-          className="relative w-full max-h-full overflow-y-auto rounded-3xl"
-          style={{
-            transform: `translateX(${offsetX}px) translateY(${offsetY}px) rotate(${offsetX * 0.08}deg)`,
-            transition: exitAnim ? 'transform 0.25s ease-out, opacity 0.25s ease-out' : isDragging ? 'none' : 'transform 0.3s ease-out',
-            opacity: exitAnim ? 0 : 1,
-          }}
-        >
-          <SwipeCard recipe={currentRecipe} offsetX={offsetX} />
-        </div>
+        {visibleCards
+          .map((recipe, depth) => (
+            <SwipeCard
+              key={recipe.id}
+              recipe={recipe}
+              depth={depth}
+              offsetX={offsetX}
+              offsetY={offsetY}
+              isDragging={isDragging}
+              exiting={depth === 0 ? exitAnim : null}
+            />
+          ))
+          .reverse()}
       </div>
 
-      {/* Progress */}
-      <div className="text-xs text-gray-400 mt-2 mb-1">
+      <div className="mt-2 text-center text-xs text-gray-400">
         {currentIndex + 1} из {stableRecipes.length}
       </div>
 
-      {/* Recipe detail modal */}
       {selectedRecipe && (
         <RecipeDetail recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)} />
       )}
