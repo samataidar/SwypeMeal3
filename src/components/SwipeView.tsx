@@ -39,6 +39,7 @@ function SwipeCard({ recipe, depth, offsetX, offsetY, isDragging, exiting }: Swi
   return (
     <div
       className="absolute inset-0 overflow-hidden rounded-[28px] bg-gray-900 shadow-2xl will-change-transform"
+      data-card
       style={{
         transform,
         zIndex: 10 - depth,
@@ -307,6 +308,7 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
     <div className="flex h-full flex-col px-3 pb-2 pt-2">
       <div
         className="relative flex-1 min-h-0 cursor-grab touch-none active:cursor-grabbing"
+        data-deck
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

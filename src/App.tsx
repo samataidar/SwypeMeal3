@@ -13,6 +13,39 @@ import { api } from './api';
 
 type Tab = 'swipe' | 'queue' | 'add' | 'admin' | 'profile';
 
+/** Size diagnostics for mobile layout bugs: open the app with ?diag=1 */
+function Diag() {
+  const [info, setInfo] = useState('');
+
+  useEffect(() => {
+    const update = () => {
+      const shell = document.querySelector('.app-shell');
+      const main = document.querySelector('main');
+      const deck = document.querySelector('[data-deck]');
+      const vv = window.visualViewport;
+      setInfo([
+        `win ${window.innerWidth}x${window.innerHeight}`,
+        `vv ${vv ? `${Math.round(vv.width)}x${Math.round(vv.height)}` : '-'}`,
+        `dvh ${typeof CSS !== 'undefined' && CSS.supports('height', '100dvh')}`,
+        `shell ${shell ? Math.round(shell.getBoundingClientRect().height) : '-'}`,
+        `main ${main ? Math.round(main.getBoundingClientRect().height) : '-'}`,
+        `deck ${deck ? Math.round(deck.getBoundingClientRect().height) : '-'}`,
+        `cards ${document.querySelectorAll('[data-card]').length}`,
+        `ua ${navigator.userAgent.slice(0, 90)}`,
+      ].join('\n'));
+    };
+    update();
+    const id = window.setInterval(update, 500);
+    return () => window.clearInterval(id);
+  }, []);
+
+  return (
+    <pre className="fixed left-1 top-1 z-[100] max-w-[95vw] whitespace-pre-wrap break-words rounded bg-black/80 p-2 text-[10px] leading-tight text-white">
+      {info}
+    </pre>
+  );
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('swipe');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -117,7 +150,7 @@ function App() {
   };
 
   return (
-    <div className="h-screen-mobile flex flex-col bg-gray-50 max-w-lg mx-auto relative overflow-hidden">
+    <div className="app-shell bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -258,6 +291,8 @@ function App() {
           </div>
         </div>
       )}
+
+      {typeof window !== 'undefined' && window.location.search.includes('diag=1') && <Diag />}
     </div>
   );
 }
