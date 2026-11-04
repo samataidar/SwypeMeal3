@@ -11,14 +11,6 @@ export function getStoredTheme(): Theme | null {
   }
 }
 
-export function getSystemTheme(): Theme {
-  try {
-    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  } catch {
-    return 'light';
-  }
-}
-
 export function applyTheme(theme: Theme, persist = false): void {
   document.documentElement.classList.toggle('dark', theme === 'dark');
   document.documentElement.style.colorScheme = theme;
@@ -31,9 +23,9 @@ export function applyTheme(theme: Theme, persist = false): void {
   }
 }
 
-/** Apply the saved (or system) theme before the first render. */
+/** Apply the saved theme before the first render. Light is the default. */
 export function initTheme(): Theme {
-  const theme = getStoredTheme() ?? getSystemTheme();
+  const theme = getStoredTheme() ?? 'light';
   applyTheme(theme);
   return theme;
 }
