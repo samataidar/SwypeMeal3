@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Recipe } from '../types';
 import { resolveImageUrl } from '../utils/imageUrl';
 import RecipeDetail from './RecipeDetail';
-import { RotateCcw, Clock, Flame, Users } from 'lucide-react';
+import { RefreshCw, Loader2, Clock, Flame, Users } from 'lucide-react';
 
 const SWIPE_THRESHOLD = 100;
 const OPEN_DETAILS_PULL = 70;
@@ -118,12 +118,15 @@ interface SwipeViewProps {
   recipes: Recipe[];
   onLike: (recipe: Recipe) => void;
   onDislike: (recipe: Recipe) => void;
-  onReset: () => void;
+  /** Clears the swiped list so the deck can be filled again. */
+  onReset: () => void | Promise<void>;
+  /** Pulls fresh data from the backend (optional). */
+  onRefresh?: () => void | Promise<void>;
 }
 
-export default function SwipeView({ recipes: availableRecipes, onLike, onDislike, onReset }: SwipeViewProps) {
-  // Keep the deck stable: it only resets on "Начать заново" or when it runs out
-  // and new recipes become available.
+export default function SwipeView({ recipes: availableRecipes, onLike, onDislike, onReset, onRefresh }: SwipeViewProps) {
+  // Keep the deck stable: it only resets on "Обновить" or when it runs out and
+  // new recipes become available.
   const [stableRecipes, setStableRecipes] = useState<Recipe[]>(() => [...availableRecipes]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
@@ -131,6 +134,8 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
   const [offsetY, setOffsetY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [exitAnim, setExitAnim] = useState<'left' | 'right' | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [pendingRefresh, setPendingRefresh] = useState(false);
   const startXRef = useRef(0);
   const startYRef = useRef(0);
   const startOffsetRef = useRef(0);
@@ -255,26 +260,42 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
     return () => window.removeEventListener('keydown', onKeyDown);
   });
 
-  const handleReset = () => {
-    onReset();
-    setTimeout(() => {
-      setStableRecipes([...availableRecipes]);
-      setCurrentIndex(0);
-    }, 100);
+  const handleReset = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setPendingRefresh(true);
+    try {
+      await onReset();
+      await onRefresh?.();
+    } catch {
+      // Keep the current screen; the button can be pressed again.
+    } finally {
+      setRefreshing(false);
+    }
   };
+  // Rebuild the deck only after an explicit refresh, once the store has
+  // recomputed the available recipes.
+  useEffect(() => {
+    if (!pendingRefresh || availableRecipes.length === 0) return;
+    setStableRecipes([...availableRecipes]);
+    setCurrentIndex(0);
+    setPendingRefresh(false);
+  }, [pendingRefresh, availableRecipes]);
 
   if (stableRecipes.length === 0 || currentIndex >= stableRecipes.length) {
     return (
       <div className="flex h-full flex-col items-center justify-center px-6 text-center">
         <div className="mb-4 text-6xl">🎉</div>
-        <h2 className="mb-2 text-2xl font-bold text-gray-800">Рецепты закончились!</h2>
-        <p className="mb-6 text-gray-500">Вы просмотрели все доступные рецепты. Сбросьте список или измените фильтры.</p>
+        <h2 className="mb-6 text-xl font-bold text-gray-800">
+          Вы просмотрели все доступные рецепты
+        </h2>
         <button
           onClick={handleReset}
-          className="flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3 font-medium text-white transition-colors hover:bg-orange-600"
+          disabled={refreshing}
+          className="flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3 font-medium text-white transition-colors hover:bg-orange-600 disabled:opacity-60"
         >
-          <RotateCcw size={18} />
-          Начать заново
+          {refreshing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+          Обновить
         </button>
       </div>
     );

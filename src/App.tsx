@@ -172,6 +172,7 @@ function App() {
               store.markSwiped(recipe.id, 'dislike');
             }}
             onReset={store.resetSwiped}
+            onRefresh={store.syncFromBackend}
           />
         )}
         {activeTab === 'queue' && (
