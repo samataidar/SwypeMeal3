@@ -1,5 +1,5 @@
 import { UserPreferences } from '../types';
-import { Sliders, Clock, Flame } from 'lucide-react';
+import { Clock, Flame } from 'lucide-react';
 
 interface SettingsProps {
   preferences: UserPreferences;
@@ -33,12 +33,7 @@ export default function Settings({
   };
 
   return (
-    <div className="px-4 py-4 h-full overflow-y-auto pb-24">
-      <div className="flex items-center gap-2 mb-6">
-        <Sliders size={20} className="text-orange-500" />
-        <h2 className="text-xl font-bold text-gray-900">Настройки</h2>
-      </div>
-
+    <div className="h-full overflow-y-auto px-4 py-4 pb-8">
       {/* Max calories */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4">
         <div className="flex items-center gap-2 mb-3">
