@@ -306,10 +306,6 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
           .reverse()}
       </div>
 
-      <div className="mt-2 text-center text-xs text-gray-400">
-        {currentIndex + 1} из {stableRecipes.length}
-      </div>
-
       {selectedRecipe && (
         <RecipeDetail recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)} />
       )}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Heart, List, Settings as SettingsIcon, UtensilsCrossed, Plus, Wifi, WifiOff, Loader2, User, Shield } from 'lucide-react';
+import { Heart, List, Sliders, ArrowLeft, UtensilsCrossed, Plus, Wifi, WifiOff, Loader2, User, Shield } from 'lucide-react';
 import SwipeView from './components/SwipeView';
 import CookQueue from './components/CookQueue';
 import Settings from './components/Settings';
@@ -11,10 +11,11 @@ import { useStore } from './store';
 import { useAuth } from './contexts/AuthContext';
 import { api } from './api';
 
-type Tab = 'swipe' | 'queue' | 'settings' | 'add' | 'admin' | 'profile';
+type Tab = 'swipe' | 'queue' | 'add' | 'admin' | 'profile';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('swipe');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const store = useStore();
   const { user, loading, signOut, userRole } = useAuth();
 
@@ -44,6 +45,15 @@ function App() {
     }
   }, [user, loading, store.setUser, store.syncFromBackend]);
 
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setFiltersOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [filtersOpen]);
+
   // Show loading screen while checking auth
   if (loading) {
     return (
@@ -68,7 +78,6 @@ function App() {
     { id: 'queue', icon: List, label: 'Очередь', badge: store.queue.length },
     { id: 'add', icon: Plus, label: 'Добавить' },
     ...(isAdmin ? [{ id: 'admin' as Tab, icon: Shield, label: 'Админ' }] : []),
-    { id: 'settings', icon: SettingsIcon, label: 'Фильтры' },
     { id: 'profile', icon: User, label: 'Профиль' },
   ];
 
@@ -117,15 +126,20 @@ function App() {
           </div>
           <h1 className="text-lg font-bold text-gray-900">SwypeMeal</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <SyncIndicator />
-          <div className="text-xs text-gray-400">
-            {store.availableRecipes.length} рецептов
-          </div>
+          <button
+            onClick={() => setFiltersOpen(true)}
+            className="p-2 text-gray-500 transition-colors hover:text-orange-600"
+            title="Фильтры для свайпа"
+            aria-label="Фильтры"
+          >
+            <Sliders size={18} />
+          </button>
           {/* User menu: opens the profile tab */}
           <button
             onClick={() => setActiveTab('profile')}
-            className="ml-2 flex items-center gap-2 rounded-full p-0.5 pl-2 transition-colors hover:bg-gray-100"
+            className="flex items-center gap-2 rounded-full p-0.5 transition-colors hover:bg-gray-100"
             title="Профиль"
           >
             {user.user_metadata?.avatar_url ? (
@@ -178,12 +192,6 @@ function App() {
         {activeTab === 'admin' && isAdmin && (
           <AdminPanel />
         )}
-        {activeTab === 'settings' && (
-          <Settings
-            preferences={store.preferences}
-            onChange={store.setPreferences}
-          />
-        )}
         {activeTab === 'profile' && (
           <Profile
             user={user}
@@ -227,6 +235,28 @@ function App() {
           })}
         </div>
       </nav>
+
+      {/* Filters (affect the swipe deck only) */}
+      {filtersOpen && (
+        <div className="absolute inset-0 z-40 flex flex-col bg-gray-50">
+          <div className="flex flex-shrink-0 items-center gap-1 border-b border-gray-100 bg-white px-3 py-2">
+            <button
+              onClick={() => setFiltersOpen(false)}
+              className="p-2 text-gray-500 transition-colors hover:text-gray-800"
+              aria-label="Назад"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <h2 className="text-lg font-bold text-gray-900">Фильтры</h2>
+          </div>
+          <div className="min-h-0 flex-1">
+            <Settings
+              preferences={store.preferences}
+              onChange={store.setPreferences}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
