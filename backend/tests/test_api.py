@@ -316,3 +316,58 @@ def test_approve_falls_back_to_user_profile_for_author_name(client, supabase_mod
     assert client.post("/api/recipes/p-2/approve", headers=headers, json={}).status_code == 200
     inserted = [call for call in fake.calls if call[0] == "insert" and call[1] == "recipes"]
     assert inserted[0][2]["author_name"] == "Ivan"
+
+
+# ---------------------------------------------------------------------------
+# Nickname
+# ---------------------------------------------------------------------------
+
+def test_display_name_prefers_nickname(supabase_mode):
+    from conftest import FakeSupabase
+
+    supabase_mode(FakeSupabase(user_rows=[{
+        "nickname": "chef",
+        "full_name": "Anna",
+        "email": "anna@example.com",
+    }]))
+    assert main.get_user_display_name("u1") == "chef"
+
+
+@pytest.mark.parametrize("bad", ["ab", "a" * 25, "bad!name", "   ", "ник<script>"])
+def test_nickname_validation(client, supabase_mode, headers, bad):
+    from conftest import FakeSupabase
+
+    supabase_mode(FakeSupabase())
+    response = client.put("/api/me/nickname", headers=headers, json={"nickname": bad})
+    assert response.status_code == 400, (bad, response.status_code)
+
+
+def test_nickname_is_saved_and_backfilled(client, supabase_mode, headers):
+    from conftest import FakeSupabase
+
+    fake = supabase_mode(FakeSupabase())
+    response = client.put("/api/me/nickname", headers=headers, json={"nickname": "  Chef_Anna  "})
+    assert response.status_code == 200, response.text
+    assert response.json()["nickname"] == "Chef_Anna"
+
+    updates = {call[1]: call[2] for call in fake.calls if call[0] == "update"}
+    assert updates["users"] == {"nickname": "Chef_Anna"}
+    assert updates["recipes"] == {"author_name": "Chef_Anna"}
+    assert updates["pending_recipes"] == {"author_name": "Chef_Anna"}
+
+
+def test_taken_nickname_returns_409(client, supabase_mode, headers):
+    from conftest import FakeSupabase
+
+    class DuplicateNickname(FakeSupabase):
+        def update(self, table, filters, data):
+            self.calls.append(("update", table, data))
+            if table == "users":
+                raise Exception(
+                    "Supabase error 409: duplicate key value violates unique constraint"
+                )
+
+    supabase_mode(DuplicateNickname())
+    response = client.put("/api/me/nickname", headers=headers, json={"nickname": "chef"})
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Этот ник уже занят"

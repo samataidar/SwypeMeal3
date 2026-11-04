@@ -13,21 +13,32 @@ alter table public.users add column if not exists email text;
 alter table public.users add column if not exists full_name text;
 alter table public.users add column if not exists avatar_url text;
 
+-- Публичный ник (редактируется пользователем). Уникален без учёта регистра.
+alter table public.users add column if not exists nickname text;
+
+create unique index if not exists users_nickname_unique
+    on public.users (lower(btrim(nickname)))
+    where nickname is not null and btrim(nickname) <> '';
+
 -- Денормализованное имя автора: попадает в публичную таблицу рецептов.
 alter table public.recipes add column if not exists author_name text;
 
 -- Имя автора для админской очереди модерации (не публично).
 alter table public.pending_recipes add column if not exists author_name text;
 
--- Бэкфилл имени автора для уже одобренных рецептов.
+-- Бэкфилл имени автора: ник → имя из Google → часть email до @.
 -- Профили заполняются при входе пользователя (POST /api/me), поэтому этот
 -- блок имеет смысл запускать повторно после того, как авторы зайдут в приложение.
 update public.recipes r
-set author_name = coalesce(nullif(btrim(u.full_name), ''), split_part(u.email, '@', 1))
+set author_name = coalesce(
+        nullif(btrim(u.nickname), ''),
+        nullif(btrim(u.full_name), ''),
+        split_part(u.email, '@', 1)
+    )
 from public.users u
 where r.author_id = u.id
   and (r.author_name is null or btrim(r.author_name) = '')
-  and (u.full_name is not null or u.email is not null);
+  and (u.nickname is not null or u.full_name is not null or u.email is not null);
 
 -- Проверка
 select table_name, column_name

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { HistoryItem } from '../types';
 import History from './History';
+import { api, ApiError } from '../api';
+import { useAuth } from '../contexts/AuthContext';
 import { applyTheme, getCurrentTheme, type Theme } from '../utils/theme';
 import {
   ArrowLeft,
@@ -13,6 +15,7 @@ import {
   ListChecks,
   LogOut,
   Moon,
+  Pencil,
   Sun,
   User as UserIcon,
 } from 'lucide-react';
@@ -46,11 +49,48 @@ export default function Profile({
 }: ProfileProps) {
   const [theme, setTheme] = useState<Theme>(() => getCurrentTheme());
   const [historyOpen, setHistoryOpen] = useState(false);
+  const { profile, setProfile } = useAuth();
+
+  const [editingNickname, setEditingNickname] = useState(false);
+  const [nicknameDraft, setNicknameDraft] = useState('');
+  const [nicknameError, setNicknameError] = useState<string | null>(null);
+  const [savingNickname, setSavingNickname] = useState(false);
 
   const toggleTheme = () => {
     const next: Theme = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
     applyTheme(next, true);
+  };
+
+  const startEditingNickname = () => {
+    setNicknameDraft(profile?.nickname || displayName);
+    setNicknameError(null);
+    setEditingNickname(true);
+  };
+
+  const saveNickname = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (savingNickname) return;
+
+    setSavingNickname(true);
+    setNicknameError(null);
+    try {
+      const result = await api.updateNickname(nicknameDraft);
+      setProfile({ ...(profile ?? {}), nickname: result.nickname });
+      setEditingNickname(false);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        setNicknameError('Этот ник уже занят');
+      } else if (error instanceof ApiError && error.status === 400) {
+        setNicknameError(error.message);
+      } else if (error instanceof ApiError && error.status === 503) {
+        setNicknameError('Сервис недоступен, попробуйте позже');
+      } else {
+        setNicknameError('Не удалось сохранить ник');
+      }
+    } finally {
+      setSavingNickname(false);
+    }
   };
 
   useEffect(() => {
@@ -62,11 +102,14 @@ export default function Profile({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [historyOpen]);
 
-  const name: string =
+  const displayName: string =
+    profile?.nickname ||
+    profile?.full_name ||
     user.user_metadata?.full_name ||
     user.user_metadata?.name ||
     user.email ||
     'Пользователь';
+  const name = displayName;
   const email = user.email ?? '';
   const avatarUrl: string | undefined = user.user_metadata?.avatar_url;
   const initial = name.trim().charAt(0).toUpperCase() || '?';
@@ -101,15 +144,56 @@ export default function Profile({
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h2 className="truncate text-lg font-bold text-gray-900">{name}</h2>
-            {userRole === 'admin' && (
-              <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-600">
-                Админ
-              </span>
-            )}
-          </div>
-          {email && <div className="truncate text-xs text-gray-500">{email}</div>}
+          {editingNickname ? (
+            <form onSubmit={saveNickname} className="space-y-1">
+              <input
+                autoFocus
+                value={nicknameDraft}
+                onChange={(e) => setNicknameDraft(e.target.value)}
+                maxLength={24}
+                placeholder="Ваш ник"
+                className="w-full rounded-lg border border-gray-200 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={savingNickname}
+                  className="rounded-lg bg-orange-500 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-60"
+                >
+                  Сохранить
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingNickname(false)}
+                  className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs text-gray-600"
+                >
+                  Отмена
+                </button>
+              </div>
+              {nicknameError && <p className="text-xs text-red-600">{nicknameError}</p>}
+            </form>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <h2 className="truncate text-lg font-bold text-gray-900">{name}</h2>
+                <button
+                  onClick={startEditingNickname}
+                  className="p-1 text-gray-400 transition-colors hover:text-orange-600"
+                  aria-label="Изменить ник"
+                  title="Изменить ник"
+                >
+                  <Pencil size={14} />
+                </button>
+                {userRole === 'admin' && (
+                  <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-600">
+                    Админ
+                  </span>
+                )}
+              </div>
+              {email && <div className="truncate text-xs text-gray-500">{email}</div>}
+              <div className="text-[11px] text-gray-400">Ник виден на ваших рецептах</div>
+            </>
+          )}
         </div>
         <UserIcon size={18} className="flex-shrink-0 text-gray-300" />
       </div>
