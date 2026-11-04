@@ -1,17 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
-import { Heart, List, History as HistoryIcon, Settings as SettingsIcon, UtensilsCrossed, Plus, Wifi, WifiOff, Loader2, LogOut, User, Shield } from 'lucide-react';
+import { Heart, List, Settings as SettingsIcon, UtensilsCrossed, Plus, Wifi, WifiOff, Loader2, User, Shield } from 'lucide-react';
 import SwipeView from './components/SwipeView';
 import CookQueue from './components/CookQueue';
-import History from './components/History';
 import Settings from './components/Settings';
 import AddRecipe from './components/AddRecipe';
 import AdminPanel from './components/AdminPanel';
 import LoginPage from './components/LoginPage';
+import Profile from './components/Profile';
 import { useStore } from './store';
 import { useAuth } from './contexts/AuthContext';
 import { api } from './api';
 
-type Tab = 'swipe' | 'queue' | 'history' | 'settings' | 'add' | 'admin';
+type Tab = 'swipe' | 'queue' | 'settings' | 'add' | 'admin' | 'profile';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('swipe');
@@ -66,10 +66,10 @@ function App() {
   const tabs: { id: Tab; icon: any; label: string; badge?: number }[] = [
     { id: 'swipe', icon: Heart, label: 'Свайп' },
     { id: 'queue', icon: List, label: 'Очередь', badge: store.queue.length },
-    { id: 'history', icon: HistoryIcon, label: 'История', badge: store.history.length },
     { id: 'add', icon: Plus, label: 'Добавить' },
     ...(isAdmin ? [{ id: 'admin' as Tab, icon: Shield, label: 'Админ' }] : []),
     { id: 'settings', icon: SettingsIcon, label: 'Фильтры' },
+    { id: 'profile', icon: User, label: 'Профиль' },
   ];
 
   const SyncIndicator = () => {
@@ -122,8 +122,12 @@ function App() {
           <div className="text-xs text-gray-400">
             {store.availableRecipes.length} рецептов
           </div>
-          {/* User menu */}
-          <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-200">
+          {/* User menu: opens the profile tab */}
+          <button
+            onClick={() => setActiveTab('profile')}
+            className="ml-2 flex items-center gap-2 rounded-full p-0.5 pl-2 transition-colors hover:bg-gray-100"
+            title="Профиль"
+          >
             {user.user_metadata?.avatar_url ? (
               <img 
                 src={user.user_metadata.avatar_url} 
@@ -135,14 +139,7 @@ function App() {
                 <User size={16} className="text-orange-600" />
               </div>
             )}
-            <button
-              onClick={signOut}
-              className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-              title="Выйти"
-            >
-              <LogOut size={16} />
-            </button>
-          </div>
+          </button>
         </div>
       </header>
 
@@ -172,12 +169,6 @@ function App() {
             onMoveDown={store.moveQueueDown}
           />
         )}
-        {activeTab === 'history' && (
-          <History
-            history={store.history}
-            onRemove={store.removeFromHistory}
-          />
-        )}
         {activeTab === 'add' && (
           <AddRecipe
             onSubmit={store.submitRecipe}
@@ -193,6 +184,17 @@ function App() {
             onChange={store.setPreferences}
           />
         )}
+        {activeTab === 'profile' && (
+          <Profile
+            user={user}
+            userRole={userRole}
+            history={store.history}
+            queueCount={store.queue.length}
+            swipedCount={store.swipedIds.length}
+            onRemoveHistory={store.removeFromHistory}
+            onSignOut={signOut}
+          />
+        )}
       </main>
 
       {/* Bottom Navigation */}
@@ -205,7 +207,7 @@ function App() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all ${
+                className={`relative flex flex-col items-center gap-0.5 px-2 py-2 rounded-xl transition-all ${
                   isActive
                     ? 'text-orange-600 bg-orange-50'
                     : 'text-gray-400 hover:text-gray-600'

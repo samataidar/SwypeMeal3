@@ -424,6 +424,7 @@ export function useStore() {
     availableRecipes,
     preferences,
     customRecipes,
+    swipedIds,
     
     // Sync state
     syncEnabled,
