@@ -28,6 +28,7 @@ function mapBackendRecipe(r: any): Recipe {
     steps: r.steps,
     tags: r.tags,
     difficulty: r.difficulty,
+    authorName: r.author_name || undefined,
   };
 }
 

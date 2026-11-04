@@ -13,6 +13,8 @@ export interface Recipe {
   steps: string[];
   tags: string[];
   difficulty: 'easy' | 'medium' | 'hard';
+  /** Public author name for moderated user recipes (built-ins have none). */
+  authorName?: string;
 }
 
 export interface QueueItem {

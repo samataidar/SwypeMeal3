@@ -33,6 +33,9 @@ export default function RecipeDetail({ recipe, onClose }: RecipeDetailProps) {
             </button>
             <h2 className="text-2xl font-bold mt-3">{recipe.title}</h2>
             <p className="text-gray-500 mt-1">{recipe.description}</p>
+            {recipe.authorName && (
+              <p className="mt-1 text-xs text-gray-500">Автор: {recipe.authorName}</p>
+            )}
           </div>
 
           {/* Macros */}

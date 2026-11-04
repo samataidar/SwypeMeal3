@@ -49,6 +49,12 @@
   состояние, а следующая запись (`save_state`) удаляла очередь/историю
   пользователя. Теперь ошибка чтения/записи → `503`, полная перезапись
   (`save_state`) используется только в файловом режиме.
+- Профили и авторство: `POST /api/me` сохраняет `full_name`/`email`/`avatar_url`
+  из токена Supabase в `users` (один раз за сессию, вызывается из
+  `AuthContext`). Email приватный (RLS: только своя строка). При отправке рецепта
+  имя автора пишется в `pending_recipes.author_name`, при одобрении — в
+  `recipes.author_name` (денормализовано, публично), и показывается в карточке
+  рецепта и в админке. Схема: `backend/add_user_profiles.sql`.
 - Проверено на production без VPN: `/api/health` → `200`
   `{"status":"healthy","database":"connected"}`, `/images/...` → `200 image/jpeg`,
   заголовок `Authorization` доходит до backend (битый токен →
@@ -276,7 +282,9 @@ print("OK")
 4. **Проверить прод после смены ключа на Render** (`SUPABASE_KEY` =
    service_role, `USE_SUPABASE=true`): `/api/health` должен вернуть
    `healthy/connected/service_role`.
-5. Дополнительно (по желанию): поиск по рецептам, план на неделю
+5. **Применить `backend/add_user_profiles.sql`** (колонки профиля и
+   `author_name`). До этого `/api/me` вернёт 503, а отправка рецепта — 500.
+6. Дополнительно (по желанию): поиск по рецептам, план на неделю
    (`planned_date`), список покупок, PWA, тосты об ошибках.
 
 ---

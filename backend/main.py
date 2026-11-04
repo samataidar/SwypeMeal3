@@ -429,6 +429,43 @@ def ensure_user_exists(user_id: str):
     except Exception as e:
         print(f"Warning: Could not ensure user exists: {e}")
 
+
+def _profile_from_user(user: dict) -> dict:
+    """Display profile derived from the Supabase auth user (no extra queries)."""
+    meta = user.get("user_metadata") or {}
+    full_name = (meta.get("full_name") or meta.get("name") or "").strip()
+    email = (user.get("email") or "").strip()
+    avatar_url = (meta.get("avatar_url") or "").strip()
+    if not full_name and email:
+        full_name = email.split("@")[0]
+    return {"full_name": full_name, "email": email, "avatar_url": avatar_url}
+
+
+def _upsert_user_profile(user_id: str, profile: dict) -> None:
+    """Store the profile fields that are present; never overwrite with blanks."""
+    ensure_user_exists(user_id)
+    row = {key: value for key, value in profile.items() if value}
+    if row:
+        supabase.update("users", {"id": user_id}, row)
+
+
+def get_user_display_name(user_id: str) -> str:
+    """Public display name for a user (name, or the email local part)."""
+    if not (USE_SUPABASE and supabase):
+        return ""
+    try:
+        rows = supabase.select("users", query="full_name,email", filters={"id": user_id})
+    except Exception as exc:
+        print(f"[WARN] Could not load profile for {user_id}: {exc}")
+        return ""
+    if not rows:
+        return ""
+    row = rows[0]
+    name = (row.get("full_name") or "").strip()
+    if name:
+        return name
+    return (row.get("email") or "").split("@")[0].strip()
+
 def ensure_recipe_exists(recipe: dict):
     """Ensure recipe exists in the recipes table"""
     try:
@@ -898,8 +935,10 @@ def submit_recipe(
     """Submit a recipe for moderation"""
     if USE_SUPABASE and supabase:
         try:
+            author_name = _profile_from_user(current_user)["full_name"] or get_user_display_name(current_user["id"])
             recipe_data = {
                 "author_id": current_user["id"],
+                "author_name": author_name or None,
                 "title": new_recipe.title,
                 "description": new_recipe.description,
                 "image": new_recipe.image,
@@ -917,7 +956,11 @@ def submit_recipe(
             result = supabase.insert("pending_recipes", recipe_data)
             return {"message": "Recipe submitted for moderation", "recipe_id": result[0]["id"] if result else None}
         except Exception as e:
-            print(f"Error submitting recipe: {e}")
+            print(f"[ERROR] Error submitting recipe: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Could not submit the recipe, please retry",
+            )
     return {"message": "Recipe submitted for moderation", "recipe_id": f"pending_{uuid.uuid4().hex[:8]}"}
 
 class ModerationAction(BaseModel):
@@ -960,6 +1003,8 @@ def approve_recipe(
                 "difficulty": recipe_data["difficulty"],
                 "is_custom": True,
                 "author_id": recipe_data["author_id"],
+                "author_name": recipe_data.get("author_name")
+                    or get_user_display_name(recipe_data.get("author_id", "")),
                 "status": "approved"
             }
             supabase.insert("recipes", new_recipe)
@@ -1233,6 +1278,22 @@ def get_stats(user_id: str, current_user: dict = Depends(get_current_user)):
         "queue_size": len(state["queue"]),
         "swiped_count": len(state["swiped_ids"]),
     }
+
+# User profile
+@app.post("/api/me")
+def sync_profile(current_user: dict = Depends(get_current_user)):
+    """Store the name/email/avatar that come with the Supabase token.
+
+    Email stays private (RLS on `users` allows reading only your own row); the
+    public author name is denormalized into `recipes.author_name` on approval.
+    """
+    profile = _profile_from_user(current_user)
+    if _supabase_enabled():
+        _save_or_fail(
+            lambda: _upsert_user_profile(current_user["id"], profile),
+            "profile write",
+        )
+    return {"id": current_user["id"], **profile}
 
 # User role endpoints
 @app.get("/api/user/role/{user_id}")

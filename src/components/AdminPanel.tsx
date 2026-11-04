@@ -6,6 +6,7 @@ import { Check, X, Clock, MessageSquare, Loader2 } from 'lucide-react';
 interface PendingRecipe {
   id: string;
   author_id: string;
+  author_name?: string | null;
   title: string;
   description: string;
   image: string;
@@ -111,6 +112,9 @@ export default function AdminPanel() {
                 />
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-gray-900 mb-1">{recipe.title}</h3>
+                  {recipe.author_name && (
+                    <p className="mb-1 text-xs text-gray-500">Автор: {recipe.author_name}</p>
+                  )}
                   <p className="text-sm text-gray-500 line-clamp-2 mb-2">{recipe.description}</p>
                   <div className="flex items-center gap-3 text-xs text-gray-400">
                     <span className="flex items-center gap-1">

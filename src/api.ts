@@ -240,6 +240,14 @@ class ApiClient {
     return this.request<{ role: string }>(`/api/user/role/${this.userId}`);
   }
 
+  // Profile (name/email/avatar from the Supabase token)
+  async syncProfile() {
+    return this.request<{ id: string; full_name: string; email: string; avatar_url: string }>(
+      '/api/me',
+      { method: 'POST' }
+    );
+  }
+
   // Admin - Pending recipes
   async getPendingRecipes() {
     return this.request<{ recipes: any[]; count: number }>('/api/recipes/pending');
