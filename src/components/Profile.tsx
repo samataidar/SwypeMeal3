@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { HistoryItem } from '../types';
 import History from './History';
 import { applyTheme, getCurrentTheme, type Theme } from '../utils/theme';
 import {
+  ArrowLeft,
+  BookOpen,
   ChefHat,
+  ChevronRight,
   Clock,
   Eye,
   ListChecks,
@@ -24,6 +27,14 @@ interface ProfileProps {
   onSignOut: () => void;
 }
 
+function plural(count: number, one: string, few: string, many: string): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+  return many;
+}
+
 export default function Profile({
   user,
   userRole,
@@ -34,12 +45,22 @@ export default function Profile({
   onSignOut,
 }: ProfileProps) {
   const [theme, setTheme] = useState<Theme>(() => getCurrentTheme());
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const toggleTheme = () => {
     const next: Theme = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
     applyTheme(next, true);
   };
+
+  useEffect(() => {
+    if (!historyOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setHistoryOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [historyOpen]);
 
   const name: string =
     user.user_metadata?.full_name ||
@@ -68,6 +89,7 @@ export default function Profile({
   };
 
   return (
+    <>
     <div className="h-full overflow-y-auto px-4 py-4 pb-24">
       {/* Account */}
       <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
@@ -109,13 +131,24 @@ export default function Profile({
         ))}
       </div>
 
-      {/* Cooked history */}
-      <div className="mt-6">
-        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
-          История приготовленных
-        </h3>
-        <History history={history} onRemove={onRemoveHistory} />
-      </div>
+      {/* Cooked history — opens on demand */}
+      <button
+        onClick={() => setHistoryOpen(true)}
+        className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm transition-colors hover:bg-gray-50"
+      >
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-green-50">
+          <BookOpen size={18} className="text-green-600" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium text-gray-800">История приготовленных</span>
+          <span className="block text-xs text-gray-500">
+            {history.length > 0
+              ? `${history.length} ${plural(history.length, 'блюдо', 'блюда', 'блюд')}`
+              : 'Пока пусто'}
+          </span>
+        </span>
+        <ChevronRight size={18} className="flex-shrink-0 text-gray-300" />
+      </button>
 
       {/* Appearance */}
       <div className="mt-6 flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
@@ -158,5 +191,32 @@ export default function Profile({
         Выйти из профиля
       </button>
     </div>
+
+    {/* Full history screen */}
+    {historyOpen && (
+      <div className="fixed inset-0 z-50 flex justify-center bg-gray-50">
+        <div className="flex h-full w-full max-w-lg flex-col bg-gray-50">
+          <div className="flex flex-shrink-0 items-center gap-1 border-b border-gray-100 bg-white px-3 py-2">
+            <button
+              onClick={() => setHistoryOpen(false)}
+              className="p-2 text-gray-500 transition-colors hover:text-gray-800"
+              aria-label="Назад"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <h2 className="text-lg font-bold text-gray-900">История</h2>
+            <span className="ml-2 text-xs text-gray-500">
+              {history.length > 0
+                ? `${history.length} ${plural(history.length, 'блюдо', 'блюда', 'блюд')}`
+                : ''}
+            </span>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            <History history={history} onRemove={onRemoveHistory} />
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
