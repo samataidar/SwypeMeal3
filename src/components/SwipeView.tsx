@@ -27,9 +27,10 @@ function SwipeCard({ recipe, depth, offsetX, offsetY, isDragging, exiting }: Swi
   const isTop = depth === 0;
 
   // Stamps fade in as the card is dragged.
-  const likeOpacity = Math.max(0, Math.min(1, offsetX / 90));
-  const nopeOpacity = Math.max(0, Math.min(1, -offsetX / 90));
-  const openOpacity = Math.max(0, Math.min(1, -offsetY / 90));
+  // Stamps belong to the card being dragged, never to the ones behind it.
+  const likeOpacity = isTop ? Math.max(0, Math.min(1, offsetX / 90)) : 0;
+  const nopeOpacity = isTop ? Math.max(0, Math.min(1, -offsetX / 90)) : 0;
+  const openOpacity = isTop ? Math.max(0, Math.min(1, -offsetY / 90)) : 0;
 
   const transform = isTop
     ? `translateX(${offsetX}px) translateY(${offsetY}px) rotate(${offsetX * 0.05}deg)`
@@ -66,10 +67,10 @@ function SwipeCard({ recipe, depth, offsetX, offsetY, isDragging, exiting }: Swi
         В очередь
       </div>
       <div
-        className="pointer-events-none absolute right-5 top-8 rotate-12 rounded-xl border-4 border-red-400 px-3 py-1.5 text-xl font-extrabold uppercase tracking-wide text-red-400"
+        className="pointer-events-none absolute right-5 top-8 rotate-12 rounded-xl border-4 border-red-400 px-3 py-1.5 text-lg font-extrabold uppercase tracking-wide text-red-400"
         style={{ opacity: nopeOpacity }}
       >
-        Нет
+        Пропустить
       </div>
       <div
         className="pointer-events-none absolute inset-x-0 top-1/2 flex justify-center"
