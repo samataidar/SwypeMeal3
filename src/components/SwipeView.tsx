@@ -311,7 +311,7 @@ export default function SwipeView({ recipes: availableRecipes, onLike, onDislike
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        style={{ touchAction: 'pan-y' }}
+        style={{ touchAction: 'none' }}
       >
         {visibleCards
           .map((recipe, depth) => (
