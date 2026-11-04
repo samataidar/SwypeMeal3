@@ -15,11 +15,15 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: #f9fafb;
-  /* Предотвращаем bounce-scroll на iOS */
+  /* Не даём странице «резинить» за пределами приложения */
   overscroll-behavior: none;
-  /* Фиксируем viewport */
-  position: fixed;
   width: 100%;
+}
+
+/* Внутренние скролл-контейнеры: инерционная прокрутка на iOS */
+[class*="overflow-y-auto"],
+[class*="overflow-auto"] {
+  -webkit-overflow-scrolling: touch;
 }
 
 /* ============================================================
