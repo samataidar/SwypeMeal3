@@ -12,11 +12,23 @@ import main  # noqa: E402  (import after sys.path setup)
 class FakeSupabase:
     """Minimal stand-in for SupabaseClient that records calls."""
 
-    def __init__(self, recipes=None, queue_rows=None, swiped_rows=None, fail_tables=()):
+    def __init__(
+        self,
+        recipes=None,
+        queue_rows=None,
+        swiped_rows=None,
+        pending_rows=None,
+        user_rows=None,
+        roles=None,
+        fail_tables=(),
+    ):
         self.calls = []
         self.recipes = recipes or []
         self.queue_rows = queue_rows or []
         self.swiped_rows = swiped_rows or []
+        self.pending_rows = pending_rows or []
+        self.user_rows = user_rows or []
+        self.roles = roles or []
         self.fail_tables = set(fail_tables)
 
     def _maybe_fail(self, table):
@@ -32,15 +44,21 @@ class FakeSupabase:
             return self.queue_rows
         if table == "swiped_recipes":
             return self.swiped_rows
+        if table == "pending_recipes":
+            return self.pending_rows
+        if table == "users":
+            return self.user_rows
+        if table == "user_roles":
+            return self.roles
         return []
 
     def insert(self, table, data):
-        self.calls.append(("insert", table))
+        self.calls.append(("insert", table, data))
         self._maybe_fail(table)
         return data
 
     def upsert(self, table, data, on_conflict=None):
-        self.calls.append(("upsert", table))
+        self.calls.append(("upsert", table, data))
         self._maybe_fail(table)
         return data
 
@@ -50,12 +68,16 @@ class FakeSupabase:
         return None
 
     def update(self, table, filters, data):
-        self.calls.append(("update", table))
+        self.calls.append(("update", table, data))
         self._maybe_fail(table)
         return None
 
+    def _request(self, method, path, **kwargs):
+        self.calls.append((method.lower(), path, kwargs.get("json")))
+        return {}
+
     def tables(self):
-        return [table for _, table in self.calls]
+        return [call[1] for call in self.calls]
 
 
 def _reset_caches():

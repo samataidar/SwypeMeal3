@@ -121,8 +121,8 @@ def test_swipe_writes_only_affected_rows(client, supabase_mode, headers):
     fake = supabase_mode(FakeSupabase())
     response = client.post("/api/swipe/test-user", headers=headers, json={"recipe_id": "1", "action": "like"})
     assert response.status_code == 200
-    assert ("upsert", "swiped_recipes") in fake.calls
-    assert ("upsert", "queue_items") in fake.calls
+    assert any(call[0] == "upsert" and call[1] == "swiped_recipes" for call in fake.calls)
+    assert any(call[0] == "upsert" and call[1] == "queue_items" for call in fake.calls)
     # No bulk rewrite of the user's data.
     assert not any(call[0] == "delete" for call in fake.calls)
 
@@ -138,7 +138,7 @@ def test_preferences_do_not_rewrite_everything(client, supabase_mode, headers):
         "preferred_difficulty": ["easy"],
     }
     assert client.put("/api/preferences/test-user", headers=headers, json=payload).status_code == 200
-    assert ("upsert", "user_preferences") in fake.calls
+    assert any(call[0] == "upsert" and call[1] == "user_preferences" for call in fake.calls)
     assert not any(call[0] == "delete" for call in fake.calls)
 
 
@@ -217,3 +217,102 @@ def test_swiped_ids_in_file_mode(client, file_mode, headers):
     client.post("/api/swipe/test-user", headers=headers, json={"recipe_id": "1", "action": "dislike"})
     payload = client.get("/api/swiped/test-user", headers=headers).json()
     assert payload["swiped_ids"] == ["1"]
+
+
+# ---------------------------------------------------------------------------
+# Profiles and recipe authorship
+# ---------------------------------------------------------------------------
+
+def test_profile_from_user_extracts_name_and_email():
+    profile = main._profile_from_user({
+        "email": "anna@example.com",
+        "user_metadata": {"full_name": "Anna", "avatar_url": "https://example.com/a.png"},
+    })
+    assert profile == {
+        "full_name": "Anna",
+        "email": "anna@example.com",
+        "avatar_url": "https://example.com/a.png",
+    }
+
+
+def test_profile_falls_back_to_email_local_part():
+    profile = main._profile_from_user({"email": "ivan@example.com", "user_metadata": {}})
+    assert profile["full_name"] == "ivan"
+
+
+def test_profile_upsert_writes_only_present_fields(supabase_mode):
+    from conftest import FakeSupabase
+
+    fake = supabase_mode(FakeSupabase())
+    main._upsert_user_profile("u1", {"full_name": "Anna", "email": "", "avatar_url": ""})
+
+    updates = [call for call in fake.calls if call[0] == "update" and call[1] == "users"]
+    assert updates == [("update", "users", {"full_name": "Anna"})]
+
+
+def test_approved_recipe_keeps_public_author_name(client, supabase_mode, headers):
+    from conftest import FakeSupabase
+
+    pending = {
+        "id": "p-1",
+        "author_id": "author-1",
+        "author_name": "Anna",
+        "title": "Soup",
+        "description": "Tasty",
+        "image": "https://example.com/soup.jpg",
+        "cook_time": 20,
+        "servings": 2,
+        "calories": 300,
+        "protein": 10,
+        "fat": 8,
+        "carbs": 30,
+        "ingredients": ["water"],
+        "steps": ["cook"],
+        "tags": ["soup"],
+        "difficulty": "easy",
+        "status": "pending",
+    }
+    fake = supabase_mode(FakeSupabase(
+        pending_rows=[pending],
+        roles=[{"user_id": "test-user", "role": "admin"}],
+    ))
+
+    response = client.post("/api/recipes/p-1/approve", headers=headers, json={})
+    assert response.status_code == 200, response.text
+
+    inserted = [call for call in fake.calls if call[0] == "insert" and call[1] == "recipes"]
+    assert inserted, fake.calls
+    assert inserted[0][2]["author_name"] == "Anna"
+    assert inserted[0][2]["author_id"] == "author-1"
+
+
+def test_approve_falls_back_to_user_profile_for_author_name(client, supabase_mode, headers):
+    from conftest import FakeSupabase
+
+    pending = {
+        "id": "p-2",
+        "author_id": "author-2",
+        "title": "Soup",
+        "description": "Tasty",
+        "image": "https://example.com/soup.jpg",
+        "cook_time": 20,
+        "servings": 2,
+        "calories": 300,
+        "protein": 10,
+        "fat": 8,
+        "carbs": 30,
+        "ingredients": ["water"],
+        "steps": ["cook"],
+        "tags": ["soup"],
+        "difficulty": "easy",
+        "status": "pending",
+    }
+    fake = supabase_mode(FakeSupabase(
+        pending_rows=[pending],
+        user_rows=[{"full_name": "Ivan", "email": "ivan@example.com"}],
+        roles=[{"user_id": "test-user", "role": "admin"}],
+    ))
+
+    assert client.post("/api/recipes/p-2/approve", headers=headers, json={}).status_code == 200
+    inserted = [call for call in fake.calls if call[0] == "insert" and call[1] == "recipes"]
+    assert inserted[0][2]["author_name"] == "Ivan"

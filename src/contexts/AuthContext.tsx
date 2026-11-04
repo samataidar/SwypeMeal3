@@ -14,6 +14,18 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Profiles are synced once per user per page load (name/email/avatar).
+const syncedProfiles = new Set<string>();
+
+function syncProfileOnce(userId: string) {
+  if (syncedProfiles.has(userId)) return;
+  syncedProfiles.add(userId);
+  api.syncProfile().catch((error) => {
+    console.warn('[AuthContext] Profile sync failed:', error);
+    syncedProfiles.delete(userId);
+  });
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -30,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Load user role if authenticated
       if (session?.user) {
         api.setUserId(session.user.id);
+        syncProfileOnce(session.user.id);
         loadUserRole();
       }
     });
@@ -42,6 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (session?.user) {
         api.setUserId(session.user.id);
+        syncProfileOnce(session.user.id);
         loadUserRole();
       } else {
         setUserRole(null);
