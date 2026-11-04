@@ -8,6 +8,16 @@ import { supabase } from './lib/supabase';
 // Avoid a storm of signOut calls when several requests fail with 401 at once.
 let signOutScheduled = false;
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 // In production all API requests go to the same origin:
 //   browser -> swypemeal.ru/api -> Vercel rewrite -> Render
 // This keeps the app working from networks where onrender.com is blocked.
@@ -71,11 +81,22 @@ class ApiClient {
           signOutScheduled = true;
           supabase.auth.signOut().catch(() => undefined);
         }
-        throw new Error('API Error: 401 Unauthorized');
+        throw new ApiError(401, 'Unauthorized');
       }
 
       if (!response.ok) {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+        // Surface the backend's message (e.g. "Этот ник уже занят").
+        let detail = '';
+        try {
+          const data = await response.json();
+          if (data && typeof data.detail === 'string') detail = data.detail;
+        } catch {
+          // Response is not JSON.
+        }
+        throw new ApiError(
+          response.status,
+          detail || `API Error: ${response.status} ${response.statusText}`,
+        );
       }
 
       return await response.json();
@@ -242,10 +263,20 @@ class ApiClient {
 
   // Profile (name/email/avatar from the Supabase token)
   async syncProfile() {
-    return this.request<{ id: string; full_name: string; email: string; avatar_url: string }>(
-      '/api/me',
-      { method: 'POST' }
-    );
+    return this.request<{
+      id: string;
+      full_name: string;
+      email: string;
+      avatar_url: string;
+      nickname: string;
+    }>('/api/me', { method: 'POST' });
+  }
+
+  async updateNickname(nickname: string) {
+    return this.request<{ nickname: string }>('/api/me/nickname', {
+      method: 'PUT',
+      body: JSON.stringify({ nickname }),
+    });
   }
 
   // Admin - Pending recipes

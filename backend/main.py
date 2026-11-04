@@ -9,6 +9,7 @@ from typing import List, Optional
 import os
 import json
 import base64
+import re
 from datetime import datetime
 import uuid
 import hashlib
@@ -450,21 +451,38 @@ def _upsert_user_profile(user_id: str, profile: dict) -> None:
 
 
 def get_user_display_name(user_id: str) -> str:
-    """Public display name for a user (name, or the email local part)."""
+    """Public display name for a user (nickname, real name, or email local part)."""
     if not (USE_SUPABASE and supabase):
         return ""
     try:
-        rows = supabase.select("users", query="full_name,email", filters={"id": user_id})
+        rows = supabase.select("users", query="nickname,full_name,email", filters={"id": user_id})
     except Exception as exc:
         print(f"[WARN] Could not load profile for {user_id}: {exc}")
         return ""
     if not rows:
         return ""
     row = rows[0]
+    name = (row.get("nickname") or "").strip()
+    if name:
+        return name
     name = (row.get("full_name") or "").strip()
     if name:
         return name
     return (row.get("email") or "").split("@")[0].strip()
+
+
+def get_user_nickname(user_id: str) -> str:
+    """Current nickname of the user (empty when not set)."""
+    if not (USE_SUPABASE and supabase):
+        return ""
+    try:
+        rows = supabase.select("users", query="nickname", filters={"id": user_id})
+    except Exception as exc:
+        print(f"[WARN] Could not load nickname for {user_id}: {exc}")
+        return ""
+    if rows:
+        return (rows[0].get("nickname") or "").strip()
+    return ""
 
 def ensure_recipe_exists(recipe: dict):
     """Ensure recipe exists in the recipes table"""
@@ -1280,6 +1298,13 @@ def get_stats(user_id: str, current_user: dict = Depends(get_current_user)):
     }
 
 # User profile
+class NicknameUpdate(BaseModel):
+    nickname: str
+
+
+NICKNAME_PATTERN = re.compile(r"^[A-Za-zА-Яа-яЁё0-9 _-]{3,24}$")
+
+
 @app.post("/api/me")
 def sync_profile(current_user: dict = Depends(get_current_user)):
     """Store the name/email/avatar that come with the Supabase token.
@@ -1288,12 +1313,48 @@ def sync_profile(current_user: dict = Depends(get_current_user)):
     public author name is denormalized into `recipes.author_name` on approval.
     """
     profile = _profile_from_user(current_user)
+    nickname = ""
     if _supabase_enabled():
         _save_or_fail(
             lambda: _upsert_user_profile(current_user["id"], profile),
             "profile write",
         )
-    return {"id": current_user["id"], **profile}
+        nickname = get_user_nickname(current_user["id"])
+    return {"id": current_user["id"], **profile, "nickname": nickname}
+
+
+@app.put("/api/me/nickname")
+def update_nickname(payload: NicknameUpdate, current_user: dict = Depends(get_current_user)):
+    """Set a unique public nickname and refresh the author name on recipes."""
+    nickname = payload.nickname.strip()
+
+    if not NICKNAME_PATTERN.fullmatch(nickname):
+        raise HTTPException(
+            status_code=400,
+            detail="Ник: 3–24 символа — буквы, цифры, пробел, _ и -",
+        )
+
+    if not _supabase_enabled():
+        return {"nickname": nickname}
+
+    user_id = current_user["id"]
+    ensure_user_exists(user_id)
+
+    def _apply():
+        try:
+            supabase.update("users", {"id": user_id}, {"nickname": nickname})
+        except Exception as exc:
+            text = str(exc).lower()
+            # Unique index on lower(btrim(nickname)) is the source of truth.
+            if "duplicate" in text or "unique" in text or "409" in text:
+                raise HTTPException(status_code=409, detail="Этот ник уже занят")
+            raise
+        # Keep the denormalized author name in sync on published recipes.
+        supabase.update("recipes", {"author_id": user_id}, {"author_name": nickname})
+        supabase.update("pending_recipes", {"author_id": user_id}, {"author_name": nickname})
+
+    _save_or_fail(_apply, "nickname write")
+    return {"nickname": nickname}
 
 # User role endpoints
 @app.get("/api/user/role/{user_id}")
