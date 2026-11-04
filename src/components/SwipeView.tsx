@@ -38,7 +38,7 @@ function SwipeCard({ recipe, depth, offsetX, offsetY, isDragging, exiting }: Swi
 
   return (
     <div
-      className="absolute inset-0 overflow-hidden rounded-[28px] bg-gray-900 shadow-2xl will-change-transform"
+      className="absolute inset-0 overflow-hidden rounded-[28px] bg-gray-900 shadow-2xl"
       data-card
       style={{
         transform,
