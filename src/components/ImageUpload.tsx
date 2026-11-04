@@ -223,22 +223,6 @@ export default function ImageUpload({ value, onChange }: ImageUploadProps) {
           {error}
         </p>
       )}
-
-      {/* URL input as alternative */}
-      <div className="flex items-center gap-2">
-        <div className="flex-1 h-px bg-gray-200"></div>
-        <span className="text-xs text-gray-400">или вставьте URL</span>
-        <div className="flex-1 h-px bg-gray-200"></div>
-      </div>
-      
-      <input
-        type="url"
-        value={isValidImageUrl(value) && !value.startsWith('blob:') ? value : ''}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="https://example.com/image.jpg"
-        className="w-full p-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
-        disabled={uploading}
-      />
     </div>
   );
 }

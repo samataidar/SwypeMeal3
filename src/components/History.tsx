@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { HistoryItem } from '../types';
 import { resolveImageUrl } from '../utils/imageUrl';
 import RecipeDetail from './RecipeDetail';
-import { Clock, Flame, Star, Trash2, Calendar, Info } from 'lucide-react';
+import { Clock, Flame, Star, Trash2, Calendar } from 'lucide-react';
 
 interface HistoryProps {
   history: HistoryItem[];
@@ -30,11 +30,6 @@ export default function History({ history, onRemove }: HistoryProps) {
 
   // Stats
   const totalMeals = history.length;
-  const ratedItems = history.filter(h => h.rating);
-  const avgRating = ratedItems.length > 0
-    ? ratedItems.reduce((sum, h) => sum + (h.rating || 0), 0) / ratedItems.length
-    : 0;
-  const totalCalories = history.reduce((sum, h) => sum + h.recipe.calories, 0);
   const totalTime = history.reduce((sum, h) => sum + h.recipe.cookTime, 0);
 
   return (
@@ -44,17 +39,6 @@ export default function History({ history, onRemove }: HistoryProps) {
         <div className="bg-gradient-to-br from-purple-500 to-indigo-500 rounded-2xl p-4 text-white">
           <div className="text-sm opacity-80">Приготовлено</div>
           <div className="text-2xl font-bold">{totalMeals} блюд</div>
-        </div>
-        <div className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-4 text-white">
-          <div className="text-sm opacity-80">Средняя оценка</div>
-          <div className="text-2xl font-bold flex items-center gap-1">
-            {avgRating.toFixed(1)}
-            <Star size={16} className="fill-white" />
-          </div>
-        </div>
-        <div className="bg-gradient-to-br from-red-500 to-pink-500 rounded-2xl p-4 text-white">
-          <div className="text-sm opacity-80">Всего ккал</div>
-          <div className="text-2xl font-bold">{totalCalories}</div>
         </div>
         <div className="bg-gradient-to-br from-teal-500 to-cyan-500 rounded-2xl p-4 text-white">
           <div className="text-sm opacity-80">Время готовки</div>
@@ -67,10 +51,19 @@ export default function History({ history, onRemove }: HistoryProps) {
         {history.map((item) => (
           <div
             key={item.id}
-            className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 transition-all hover:shadow-md"
+            role="button"
+            tabIndex={0}
+            onClick={() => setDetailsItem(item)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setDetailsItem(item);
+              }
+            }}
+            className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 transition-all hover:shadow-md cursor-pointer"
           >
             <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-12 h-12 bg-green-50 rounded-xl overflow-hidden">
+              <div className="flex-shrink-0 w-14 h-14 bg-green-50 rounded-xl overflow-hidden">
                 <img 
                   src={resolveImageUrl(item.recipe.image)}
                   alt={item.recipe.title}
@@ -81,8 +74,12 @@ export default function History({ history, onRemove }: HistoryProps) {
                 <div className="flex items-start justify-between">
                   <h3 className="font-semibold text-gray-900 truncate">{item.recipe.title}</h3>
                   <button
-                    onClick={() => onRemove(item.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemove(item.id);
+                    }}
                     className="p-1.5 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                    aria-label="Удалить из истории"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -101,6 +98,11 @@ export default function History({ history, onRemove }: HistoryProps) {
                     {item.recipe.calories} ккал
                   </span>
                 </div>
+                <div className="flex flex-wrap gap-1.5 mt-2 text-[11px]">
+                  <span className="px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700">Б {item.recipe.protein}г</span>
+                  <span className="px-1.5 py-0.5 rounded-md bg-yellow-50 text-yellow-700">Ж {item.recipe.fat}г</span>
+                  <span className="px-1.5 py-0.5 rounded-md bg-green-50 text-green-700">У {item.recipe.carbs}г</span>
+                </div>
                 {item.rating && (
                   <div className="flex items-center gap-0.5 mt-1">
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -115,13 +117,6 @@ export default function History({ history, onRemove }: HistoryProps) {
                 {item.notes && (
                   <p className="text-xs text-gray-500 mt-1 italic line-clamp-2">"{item.notes}"</p>
                 )}
-                <button
-                  onClick={() => setDetailsItem(item)}
-                  className="mt-2 text-xs text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
-                >
-                  <Info size={12} />
-                  Подробнее
-                </button>
               </div>
             </div>
           </div>
