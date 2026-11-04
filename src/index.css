@@ -26,6 +26,20 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Каркас приложения: фиксируем к visual viewport.
+   На iOS height: 100% у body нестабилен, из-за чего flex-контейнеры
+   (и колода карточек) могли получить нулевую высоту. */
+.app-shell {
+  position: fixed;
+  inset: 0;
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 32rem; /* max-w-lg */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 /* ============================================================
    Тёмная тема
    Приложение свёрстано светлыми утилитами Tailwind, поэтому
