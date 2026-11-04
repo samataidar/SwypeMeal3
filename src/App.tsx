@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Heart, List, History as HistoryIcon, Settings as SettingsIcon, UtensilsCrossed, Plus, Wifi, WifiOff, RefreshCw, Loader2, LogOut, User, Shield } from 'lucide-react';
+import { Heart, List, History as HistoryIcon, Settings as SettingsIcon, UtensilsCrossed, Plus, Wifi, WifiOff, Loader2, LogOut, User, Shield } from 'lucide-react';
 import SwipeView from './components/SwipeView';
 import CookQueue from './components/CookQueue';
 import History from './components/History';
@@ -73,19 +73,6 @@ function App() {
   ];
 
   const SyncIndicator = () => {
-    if (!store.syncEnabled) {
-      return (
-        <button
-          onClick={store.toggleSync}
-          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 text-gray-500 text-xs hover:bg-gray-200 transition-colors"
-          title="Синхронизация отключена. Нажмите для включения."
-        >
-          <WifiOff size={12} />
-          <span className="hidden sm:inline">Локально</span>
-        </button>
-      );
-    }
-
     if (store.syncStatus === 'syncing') {
       return (
         <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 text-blue-600 text-xs">
@@ -204,11 +191,6 @@ function App() {
           <Settings
             preferences={store.preferences}
             onChange={store.setPreferences}
-            syncEnabled={store.syncEnabled}
-            onToggleSync={store.toggleSync}
-            backendAvailable={store.backendAvailable}
-            lastSync={store.lastSync}
-            onManualSync={store.manualSync}
           />
         )}
       </main>

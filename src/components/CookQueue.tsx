@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { QueueItem } from '../types';
 import { resolveImageUrl } from '../utils/imageUrl';
 import RecipeDetail from './RecipeDetail';
-import { Clock, Flame, Check, Trash2, ChefHat, Star, ChevronUp, ChevronDown, Info } from 'lucide-react';
+import { Clock, Flame, Check, Trash2, ChefHat, Star, ChevronUp, ChevronDown } from 'lucide-react';
 
 interface CookQueueProps {
   queue: QueueItem[];
@@ -68,10 +68,19 @@ export default function CookQueue({ queue, onRemove, onCook, onMoveUp, onMoveDow
         {queue.map((item, index) => (
           <div
             key={item.id}
-            className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 transition-all hover:shadow-md"
+            role="button"
+            tabIndex={0}
+            onClick={() => setDetailsItem(item)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setDetailsItem(item);
+              }
+            }}
+            className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 transition-all hover:shadow-md cursor-pointer"
           >
             <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-12 h-12 bg-orange-50 rounded-xl overflow-hidden">
+              <div className="flex-shrink-0 w-14 h-14 bg-orange-50 rounded-xl overflow-hidden">
                 <img 
                   src={resolveImageUrl(item.recipe.image)}
                   alt={item.recipe.title}
@@ -90,21 +99,22 @@ export default function CookQueue({ queue, onRemove, onCook, onMoveUp, onMoveDow
                     {item.recipe.calories} ккал
                   </span>
                 </div>
+                <div className="flex flex-wrap gap-1.5 mt-2 text-[11px]">
+                  <span className="px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700">Б {item.recipe.protein}г</span>
+                  <span className="px-1.5 py-0.5 rounded-md bg-yellow-50 text-yellow-700">Ж {item.recipe.fat}г</span>
+                  <span className="px-1.5 py-0.5 rounded-md bg-green-50 text-green-700">У {item.recipe.carbs}г</span>
+                </div>
                 <div className="text-xs text-gray-400 mt-1">
                   #{index + 1} в очереди
                 </div>
-                <button
-                  onClick={() => setDetailsItem(item)}
-                  className="mt-1 text-xs text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
-                >
-                  <Info size={12} />
-                  Подробнее
-                </button>
               </div>
               <div className="flex flex-col gap-1">
                 {/* Move up/down buttons */}
                 <button
-                  onClick={() => onMoveUp(item.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMoveUp(item.id);
+                  }}
                   disabled={index === 0}
                   className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   title="Переместить вверх"
@@ -112,7 +122,10 @@ export default function CookQueue({ queue, onRemove, onCook, onMoveUp, onMoveDow
                   <ChevronUp size={16} />
                 </button>
                 <button
-                  onClick={() => onMoveDown(item.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMoveDown(item.id);
+                  }}
                   disabled={index === queue.length - 1}
                   className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   title="Переместить вниз"
@@ -121,7 +134,10 @@ export default function CookQueue({ queue, onRemove, onCook, onMoveUp, onMoveDow
                 </button>
                 {/* Cook button */}
                 <button
-                  onClick={() => setCookingId(item.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCookingId(item.id);
+                  }}
                   className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
                   title="Приготовлено"
                 >
@@ -129,7 +145,10 @@ export default function CookQueue({ queue, onRemove, onCook, onMoveUp, onMoveDow
                 </button>
                 {/* Remove button */}
                 <button
-                  onClick={() => onRemove(item.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove(item.id);
+                  }}
                   className="p-1.5 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors"
                   title="Удалить"
                 >
