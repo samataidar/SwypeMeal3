@@ -36,6 +36,13 @@
       @keyframes pulse { 50% { opacity: 0.35; } }
       .name { font-weight: 600; }
       .detail { color: #93a3b8; font-size: 12px; word-break: break-word; }
+      .section {
+        margin: 18px 0 8px;
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #7b8ba1;
+      }
       .actions { display: flex; gap: 8px; margin-top: 16px; }
       button {
         flex: 1; padding: 12px; border: 0; border-radius: 12px;
@@ -181,6 +188,63 @@
           .catch(function (error) {
             sbRow.fail(describeError(error) + ' — вход и сессия работать не будут');
           });
+
+        // Reachability of well-known sites: helps spot operator whitelists
+        // (when only "allowed" resources load and others hang).
+        var section = document.createElement('div');
+        section.className = 'section';
+        section.textContent = 'Доступность внешних сайтов';
+        list.appendChild(section);
+
+        function reachable(url, timeoutMs) {
+          var controller = new AbortController();
+          var timer = setTimeout(function () { controller.abort(); }, timeoutMs);
+          var t0 = performance.now();
+          return fetch(url, { mode: 'no-cors', cache: 'no-store', signal: controller.signal })
+            .then(function () {
+              return { ok: true, ms: Math.round(performance.now() - t0) };
+            })
+            .catch(function (error) {
+              return { ok: false, ms: Math.round(performance.now() - t0), error: error };
+            })
+            .finally(function () { clearTimeout(timer); });
+        }
+
+        var sites = [
+          { key: 'ya', name: 'ya.ru', url: 'https://ya.ru/favicon.ico' },
+          { key: 'vk', name: 'vk.com', url: 'https://vk.com/favicon.ico' },
+          { key: 'google', name: 'google.com', url: 'https://www.google.com/favicon.ico' },
+          { key: 'ours', name: 'swypemeal.ru (наш домен)', url: 'https://swypemeal.ru/favicon.ico' },
+        ];
+        var siteState = {};
+
+        sites.forEach(function (site) {
+          var siteRow = row(site.name);
+          reachable(site.url, 8000).then(function (result) {
+            siteState[site.key] = result.ok;
+            if (result.ok) {
+              siteRow.ok('доступен за ' + result.ms + ' мс');
+            } else {
+              siteRow.fail('недоступен (' + describeError(result.error) + ')');
+            }
+            if (Object.keys(siteState).length === sites.length) {
+              var ours = siteState.ours;
+              var others = siteState.ya || siteState.vk || siteState.google;
+              if (ours) {
+                summaryRow.ok('наш домен открывается с этого устройства');
+              } else if (others) {
+                summaryRow.fail(
+                  'наш домен недоступен, а другие сайты открываются — похоже на блокировку ' +
+                  'или белый список оператора. Смените DNS на 1.1.1.1 и/или проверьте мобильный интернет.'
+                );
+              } else {
+                summaryRow.fail('ни один сайт не открылся — проблема с интернетом, а не с приложением');
+              }
+            }
+          });
+        });
+
+        var summaryRow = row('Вывод по доступности');
 
         // Session info (never print the token itself).
         setTimeout(function () {
