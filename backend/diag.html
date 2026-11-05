@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <title>SwypeMeal — диагностика</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 16px;
+        background: #0b1220;
+        color: #e8eef7;
+        font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+      h1 { font-size: 18px; margin: 0 0 4px; }
+      p.hint { margin: 0 0 16px; color: #93a3b8; font-size: 12px; }
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        padding: 10px 12px;
+        margin-bottom: 8px;
+        border: 1px solid #202c3e;
+        border-radius: 12px;
+        background: #131c2b;
+      }
+      .dot {
+        width: 10px; height: 10px; border-radius: 50%;
+        margin-top: 5px; flex: 0 0 auto; background: #64748b;
+      }
+      .dot.ok { background: #22c55e; }
+      .dot.fail { background: #ef4444; }
+      .dot.wait { background: #eab308; animation: pulse 1s infinite; }
+      @keyframes pulse { 50% { opacity: 0.35; } }
+      .name { font-weight: 600; }
+      .detail { color: #93a3b8; font-size: 12px; word-break: break-word; }
+      .actions { display: flex; gap: 8px; margin-top: 16px; }
+      button {
+        flex: 1; padding: 12px; border: 0; border-radius: 12px;
+        background: #f97316; color: #fff; font-size: 14px; font-weight: 600;
+      }
+      button.secondary { background: #1c2739; color: #e8eef7; }
+      pre.meta {
+        white-space: pre-wrap; word-break: break-word;
+        background: #0f1726; border: 1px solid #202c3e; border-radius: 12px;
+        padding: 10px; font-size: 11px; color: #93a3b8; margin: 16px 0 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Диагностика SwypeMeal</h1>
+    <p class="hint">
+      Проверяет загрузку приложения, API и Supabase. Если какой-то пункт долго
+      висит или красный — это и есть причина.
+    </p>
+
+    <div id="list"></div>
+
+    <div class="actions">
+      <button id="reload">Перезагрузить</button>
+      <button id="nocache" class="secondary">Без кэша</button>
+    </div>
+
+    <pre class="meta" id="meta"></pre>
+
+    <script>
+      (function () {
+        var list = document.getElementById('list');
+        var meta = document.getElementById('meta');
+        var start = Date.now();
+
+        var ua = navigator.userAgent;
+        var isIOS = /iPad|iPhone|iPod/.test(ua);
+        meta.textContent = [
+          'URL: ' + location.href,
+          'Время: ' + new Date().toISOString(),
+          'Экран: ' + window.innerWidth + 'x' + window.innerHeight,
+          'Онлайн: ' + navigator.onLine,
+          'iOS: ' + isIOS,
+          'UA: ' + ua,
+        ].join('\n');
+
+        document.getElementById('reload').addEventListener('click', function () {
+          location.reload();
+        });
+        document.getElementById('nocache').addEventListener('click', function () {
+          location.href = '/?v=' + Date.now();
+        });
+
+        function row(name) {
+          var el = document.createElement('div');
+          el.className = 'row';
+          el.innerHTML =
+            '<span class="dot wait"></span>' +
+            '<div><div class="name"></div><div class="detail">…</div></div>';
+          el.querySelector('.name').textContent = name;
+          list.appendChild(el);
+          return {
+            ok: function (text) {
+              el.querySelector('.dot').className = 'dot ok';
+              el.querySelector('.detail').textContent = text;
+            },
+            fail: function (text) {
+              el.querySelector('.dot').className = 'dot fail';
+              el.querySelector('.detail').textContent = text;
+            },
+          };
+        }
+
+        function timedFetch(url, timeoutMs, options) {
+          var controller = new AbortController();
+          var timer = setTimeout(function () { controller.abort(); }, timeoutMs);
+          var t0 = performance.now();
+          return fetch(url, Object.assign({ cache: 'no-store' }, options, { signal: controller.signal }))
+            .then(function (response) {
+              return response.text().then(function (body) {
+                return {
+                  status: response.status,
+                  body: body,
+                  ms: Math.round(performance.now() - t0),
+                };
+              });
+            })
+            .finally(function () { clearTimeout(timer); });
+        }
+
+        function describeError(error) {
+          if (!error) return 'неизвестная ошибка';
+          if (error.name === 'AbortError') return 'таймаут (запрос не ответил)';
+          return error.name + ': ' + (error.message || '');
+        }
+
+        var htmlRow = row('Страница swypemeal.ru');
+        var bundleRow = row('JS-бандл приложения');
+        var apiRow = row('API swypemeal.ru/api/health');
+        var sbRow = row('Supabase Auth');
+
+        timedFetch('/?diag-check=' + Date.now(), 15000)
+          .then(function (result) {
+            if (result.status !== 200) {
+              htmlRow.fail('HTTP ' + result.status + ' за ' + result.ms + ' мс');
+              return;
+            }
+            htmlRow.ok('HTTP 200 за ' + result.ms + ' мс');
+            var match = result.body.match(/assets\/index-[A-Za-z0-9_-]+\.js/);
+            if (!match) {
+              bundleRow.fail('не нашёл ссылку на бандл в HTML');
+              return;
+            }
+            var bundle = '/' + match[0];
+            return timedFetch(bundle, 20000).then(function (js) {
+              if (js.status !== 200) {
+                bundleRow.fail('HTTP ' + js.status + ' за ' + js.ms + ' мс');
+                return;
+              }
+              bundleRow.ok(bundle + ' — ' + Math.round(js.body.length / 1024) + ' КБ за ' + js.ms + ' мс');
+            }).catch(function (error) {
+              bundleRow.fail(describeError(error));
+            });
+          })
+          .catch(function (error) { htmlRow.fail(describeError(error)); });
+
+        timedFetch('/api/health', 15000)
+          .then(function (result) {
+            if (result.status !== 200) {
+              apiRow.fail('HTTP ' + result.status + ' за ' + result.ms + ' мс');
+              return;
+            }
+            var status = 'unknown';
+            try { status = JSON.parse(result.body).status || 'unknown'; } catch (e) {}
+            apiRow.ok('HTTP 200, status=' + status + ' за ' + result.ms + ' мс');
+          })
+          .catch(function (error) { apiRow.fail(describeError(error)); });
+
+        timedFetch('https://bbelyefgpptozjfmeyqq.supabase.co/auth/v1/health', 10000)
+          .then(function (result) {
+            sbRow.ok('HTTP ' + result.status + ' за ' + result.ms + ' мс');
+          })
+          .catch(function (error) {
+            sbRow.fail(describeError(error) + ' — вход и сессия работать не будут');
+          });
+
+        // Session info (never print the token itself).
+        setTimeout(function () {
+          try {
+            var key = Object.keys(localStorage).find(function (k) {
+              return k.indexOf('sb-') === 0 && k.slice(-11) === '-auth-token';
+            });
+            var extra = 'сессии нет';
+            if (key) {
+              try {
+                var session = JSON.parse(localStorage.getItem(key));
+                extra = 'есть сессия, expires_at=' +
+                  new Date((session.expires_at || 0) * 1000).toISOString();
+              } catch (e) {
+                extra = 'есть сессия (не удалось прочитать)';
+              }
+            }
+            meta.textContent += '\nLocalStorage: ' + localStorage.length + ' ключей, ' + extra;
+          } catch (e) {
+            meta.textContent += '\nLocalStorage: ошибка ' + e.message;
+          }
+          meta.textContent += '\nОткрыто, мс: ' + (Date.now() - start);
+        }, 1500);
+      })();
+    </script>
+  </body>
+</html>

@@ -95,7 +95,7 @@ function App() {
           <Loader2 size={48} className="animate-spin text-orange-500 mx-auto mb-4" />
           <p className="text-gray-500">Загрузка...</p>
           <a
-            href="/diag.html"
+            href="/api/diag"
             className="mt-4 inline-block text-xs text-blue-600 underline"
           >
             Долго не загружается? Открыть диагностику
