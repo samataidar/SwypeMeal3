@@ -4,6 +4,7 @@ SwypeMeal Backend - Supabase REST API Version
 
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import List, Optional
 import os
@@ -888,6 +889,18 @@ RECIPES_DB: List[Recipe] = [
 def root():
     storage_type = "Supabase REST API" if USE_SUPABASE else "File Storage"
     return {"message": "SwypeMeal API v2.0", "status": "running", "storage": storage_type}
+
+
+@app.get("/api/diag", response_class=HTMLResponse)
+def diag_page():
+    """Self-contained diagnostics page (also served when the frontend is stale)."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "diag.html")
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return HTMLResponse(handle.read())
+    except OSError as exc:
+        print(f"[ERROR] Cannot read diagnostics page: {exc}")
+        raise HTTPException(status_code=404, detail="Diagnostics page not found")
 
 @app.get("/api/recipes")
 def get_recipes(
