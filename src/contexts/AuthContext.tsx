@@ -46,19 +46,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-      
-      // Load user role if authenticated
-      if (session?.user) {
-        api.setUserId(session.user.id);
-        syncProfile(session.user.id);
-        loadUserRole();
+    let cancelled = false;
+
+    // Never wait for a session restore forever: if the auth host is slow or
+    // unreachable, fall back to "signed out" after a few seconds instead of
+    // leaving the app on the loading screen.
+    const restoreSession = async () => {
+      try {
+        const result = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<{ data: { session: null } }>((resolve) => {
+            setTimeout(() => resolve({ data: { session: null } }), 8000);
+          }),
+        ]);
+        if (cancelled) return;
+
+        const session = result.data.session;
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          api.setUserId(session.user.id);
+          syncProfile(session.user.id);
+          loadUserRole();
+        }
+      } catch (error) {
+        console.warn('[AuthContext] Session restore failed:', error);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    });
+    };
+
+    restoreSession();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -76,7 +95,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const loadUserRole = async () => {
