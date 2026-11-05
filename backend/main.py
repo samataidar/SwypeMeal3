@@ -939,6 +939,16 @@ def get_pending_recipes(current_user: dict = Depends(require_admin)):
     if USE_SUPABASE and supabase:
         try:
             result = supabase.select("pending_recipes", filters={"status": "pending"}, order="created_at.asc")
+            # Show the current nickname/name rather than the snapshot taken at submit.
+            resolved: dict = {}
+            for row in result:
+                author_id = row.get("author_id")
+                if not author_id:
+                    continue
+                if author_id not in resolved:
+                    resolved[author_id] = get_user_display_name(author_id)
+                if resolved[author_id]:
+                    row["author_name"] = resolved[author_id]
             return {"recipes": result, "count": len(result)}
         except Exception as e:
             print(f"[ERROR] Error getting pending recipes: {e}")
@@ -953,7 +963,11 @@ def submit_recipe(
     """Submit a recipe for moderation"""
     if USE_SUPABASE and supabase:
         try:
-            author_name = _profile_from_user(current_user)["full_name"] or get_user_display_name(current_user["id"])
+            # The nickname (DB) wins over the Google name from the token.
+            author_name = (
+                get_user_display_name(current_user["id"])
+                or _profile_from_user(current_user)["full_name"]
+            )
             recipe_data = {
                 "author_id": current_user["id"],
                 "author_name": author_name or None,
@@ -1021,8 +1035,9 @@ def approve_recipe(
                 "difficulty": recipe_data["difficulty"],
                 "is_custom": True,
                 "author_id": recipe_data["author_id"],
-                "author_name": recipe_data.get("author_name")
-                    or get_user_display_name(recipe_data.get("author_id", "")),
+                # Prefer the current nickname/name over the snapshot taken at submit.
+                "author_name": get_user_display_name(recipe_data.get("author_id", ""))
+                    or recipe_data.get("author_name"),
                 "status": "approved"
             }
             supabase.insert("recipes", new_recipe)

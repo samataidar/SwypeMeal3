@@ -318,6 +318,60 @@ def test_approve_falls_back_to_user_profile_for_author_name(client, supabase_mod
     assert inserted[0][2]["author_name"] == "Ivan"
 
 
+def test_approve_prefers_current_nickname_over_snapshot(client, supabase_mode, headers):
+    from conftest import FakeSupabase
+
+    pending = {
+        "id": "p-3",
+        "author_id": "author-3",
+        "author_name": "Kristina Samatova",
+        "title": "Soup",
+        "description": "Tasty",
+        "image": "https://example.com/soup.jpg",
+        "cook_time": 20,
+        "servings": 2,
+        "calories": 300,
+        "protein": 10,
+        "fat": 8,
+        "carbs": 30,
+        "ingredients": ["water"],
+        "steps": ["cook"],
+        "tags": ["soup"],
+        "difficulty": "easy",
+        "status": "pending",
+    }
+    fake = supabase_mode(FakeSupabase(
+        pending_rows=[pending],
+        user_rows=[{"nickname": "Kris", "full_name": "Kristina Samatova", "email": "k@example.com"}],
+        roles=[{"user_id": "test-user", "role": "admin"}],
+    ))
+
+    assert client.post("/api/recipes/p-3/approve", headers=headers, json={}).status_code == 200
+    inserted = [call for call in fake.calls if call[0] == "insert" and call[1] == "recipes"]
+    assert inserted[0][2]["author_name"] == "Kris"
+
+
+def test_pending_list_shows_current_nickname(client, supabase_mode, headers):
+    from conftest import FakeSupabase
+
+    supabase_mode(FakeSupabase(
+        pending_rows=[{
+            "id": "p-4",
+            "author_id": "author-4",
+            "author_name": "Old Name",
+            "title": "Soup",
+            "status": "pending",
+        }],
+        user_rows=[{"nickname": "Kris", "full_name": "Old Name", "email": "k@example.com"}],
+        roles=[{"user_id": "test-user", "role": "admin"}],
+    ))
+
+    response = client.get("/api/recipes/pending", headers=headers)
+    assert response.status_code == 200
+    recipes = response.json()["recipes"]
+    assert recipes[0]["author_name"] == "Kris"
+
+
 # ---------------------------------------------------------------------------
 # Nickname
 # ---------------------------------------------------------------------------
