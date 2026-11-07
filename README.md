@@ -134,6 +134,14 @@ React (Vercel)
 
 Если backend переедет на другой домен, обновите `destination` в `vercel.json`.
 
+### Альтернативные CDN
+
+Если у части пользователей не загружается JS-бандл с Vercel, тот же фронтенд
+можно поднять на Netlify (`netlify.toml`) или Cloudflare Pages (`functions/`,
+`wrangler.toml`). Оба варианта проксируют `/api/*` и `/images/*` через свой
+origin, поэтому браузер не обращается к Render и Unsplash напрямую.
+Подробности и порядок проверки: [docs/alternate-hosting.md](docs/alternate-hosting.md).
+
 - Frontend хранит состояние в `useStore` и дублирует его в `localStorage`.
 - При включённой синхронизации данные подтягиваются с backend.
 - Backend проверяет Supabase access token через `/auth/v1/user` и сверяет

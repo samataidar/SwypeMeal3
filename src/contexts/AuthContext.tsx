@@ -112,9 +112,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
-    // Используем production URL для OAuth redirect
-    const redirectTo = import.meta.env.VITE_SITE_URL 
-      || (import.meta.env.PROD ? 'https://swype-meal3.vercel.app' : window.location.origin);
+    // Return to the host the user is actually on. This keeps OAuth working on
+    // the main domain, preview builds and alternate CDNs (Netlify, etc.)
+    // without rebuilding with a hardcoded URL. The host must be listed in
+    // Supabase → Authentication → URL Configuration.
+    const redirectTo = import.meta.env.VITE_SITE_URL || window.location.origin;
     
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',

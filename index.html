@@ -13,6 +13,45 @@
   </head>
   <body>
     <div id="root"></div>
+
+    <!--
+      Shown only if the JS bundle cannot be loaded (some Russian ISPs block
+      static assets from Vercel). Without this the page stays blank forever.
+    -->
+    <div id="boot-fallback" style="position:fixed;inset:0;z-index:9999;display:none;flex-direction:column;gap:14px;align-items:center;justify-content:center;padding:24px;background:#f9fafb;color:#111827;font:15px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;text-align:center">
+      <div style="font-size:44px">🍽️</div>
+      <h1 style="margin:0;font-size:20px">Приложение не загрузилось</h1>
+      <p style="margin:0;max-width:420px;color:#4b5563">
+        Браузер не смог получить файлы приложения. Обычно помогает мобильный
+        интернет, другой Wi-Fi или DNS <b>1.1.1.1</b>.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+        <button onclick="location.reload()" style="padding:12px 18px;border:0;border-radius:12px;background:#f97316;color:#fff;font-size:15px;font-weight:600">Перезагрузить</button>
+        <a href="/api/diag" style="padding:12px 18px;border-radius:12px;background:#e5e7eb;color:#111827;font-size:15px;font-weight:600;text-decoration:none">Диагностика</a>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        var shown = false;
+        function show() {
+          if (shown) return;
+          var root = document.getElementById('root');
+          if (root && root.childElementCount > 0) return;
+          var el = document.getElementById('boot-fallback');
+          if (!el) return;
+          shown = true;
+          el.style.display = 'flex';
+        }
+        // A failed <script> load fires an error event on the element itself.
+        window.addEventListener('error', function (event) {
+          var target = event.target;
+          if (target && target.tagName === 'SCRIPT') show();
+        }, true);
+        // Slow / hanging requests never fire onerror, so use a timer too.
+        setTimeout(show, 15000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

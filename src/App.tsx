@@ -52,6 +52,12 @@ function App() {
   const store = useStore();
   const { user, loading, signOut, userRole } = useAuth();
 
+  // The bundle loaded and React mounted: remove the static "could not load"
+  // fallback from index.html (it is only there for the blank-screen case).
+  useEffect(() => {
+    document.getElementById('boot-fallback')?.remove();
+  }, []);
+
   // Set user ID in API client and pull fresh data after login.
   // The store itself is mounted before auth resolves, so its initial sync may
   // run without a token. Re-sync once the authenticated user is known.

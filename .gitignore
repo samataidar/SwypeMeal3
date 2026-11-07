@@ -28,6 +28,13 @@ dist-ssr
 .env.local
 .env.production
 
+# Cloudflare Wrangler local state
+.wrangler/
+
+# Alternate-host build artifacts (use `npm run build`)
+dist-netlify/
+swypemeal-netlify.zip
+
 # Backend data
 backend/data/*.json
 

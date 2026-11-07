@@ -3,7 +3,7 @@
 Документ описывает текущее состояние проекта SwypeMeal, чтобы новый сеанс мог
 продолжить работу без повторного аудита. Обновляйте его при значимых изменениях.
 
-Дата последнего обновления: 2026-11-03.
+Дата последнего обновления: 2026-11-07.
 
 ---
 
@@ -118,6 +118,22 @@ Render напрямую.
 - В dev-режиме те же пути проксирует Vite (`vite.config.js`).
 
 Если меняется домен backend — обновить `destination` в `vercel.json`.
+
+### Альтернативные CDN (на случай блокировки Vercel)
+
+- `netlify.toml` — сборка + прокси `/api/*` и `/images/*` через Netlify.
+- `functions/` + `wrangler.toml` — Cloudflare Pages Functions (прокси) и
+  `_middleware.js` (SPA-fallback). Cloudflare `_redirects` не умеет проксировать
+  внешние домены, поэтому прокси живёт в Functions.
+- `worker/index.js` + `wrangler.worker.jsonc` — вариант одного Worker на
+  статике Cloudflare; поддерживает `wrangler deploy --temporary` без аккаунта.
+  Обязательно `run_worker_first` для `/api/*` и `/images/*`.
+- `index.html` показывает аварийный экран, если JS-бандл не загрузился
+  (раньше страница оставалась пустой навсегда).
+- `src/contexts/AuthContext.tsx` возвращает OAuth на `window.location.origin`,
+  поэтому тестовый домен не требует пересборки с `VITE_SITE_URL`; домен нужно
+  добавить в Supabase → Authentication → URL Configuration.
+- Инструкции: `docs/alternate-hosting.md`.
 
 ### Frontend
 
