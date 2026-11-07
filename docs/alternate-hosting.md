@@ -9,6 +9,21 @@
 CDN проксирует `/api/*` на Render и `/images/*` на Unsplash. Если открыть
 Render напрямую, из РФ он тоже может быть недоступен.
 
+## Текущий тестовый стенд (Cloudflare Workers)
+
+Развёрнут на аккаунте Cloudflare (`samataidar`):
+
+- **https://swypemeal-test.samataidar.workers.dev**
+- Проверено: `/` → 200, `/api/health` → `healthy`, `/api/diag` → 200,
+  `/images/*` → 200.
+- Передеплой: `npx wrangler deploy --config wrangler.worker.jsonc`
+  (переменные `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`).
+- Вход через Google начнёт работать после добавления
+  `https://swypemeal-test.samataidar.workers.dev/**` в Supabase →
+  Authentication → URL Configuration → Redirect URLs.
+- Свой домен можно привязать к Worker только если зона обслуживается
+  Cloudflare; сейчас NS у reg.ru, поэтому используется `*.workers.dev`.
+
 ## Netlify (самый простой вариант)
 
 В репозитории уже есть [`netlify.toml`](../netlify.toml): сборка `npm run build`,
