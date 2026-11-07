@@ -1,0 +1,36 @@
+# Netlify-конфигурация для альтернативного хостинга фронтенда.
+#
+# Нужна как запасной домен/CDN на случай, если основной домен блокируется
+# у провайдера. Логика та же, что в vercel.json:
+#   /api/*    → Render
+#   /images/* → Unsplash
+#   /*        → SPA (index.html)
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# API и картинки проксируются, поэтому фронтенд остаётся same-origin.
+[[redirects]]
+  from = "/api/*"
+  to = "https://swypemeal.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/images/*"
+  to = "https://images.unsplash.com/:splat"
+  status = 200
+  force = true
+
+# SPA-фолбэк: любой путь отдаёт index.html.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# HTML не кэшируем, чтобы после деплоя сразу подхватывался новый бандл.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-store, must-revalidate"

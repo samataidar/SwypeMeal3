@@ -333,3 +333,4 @@ print("OK")
 - `docs/rls.md` — RLS: текущее состояние и как включить правильно.
 - `docs/cloudinary.md` — загрузка изображений.
 - `docs/image-optimization.md` — оптимизация изображений.
+- `docs/alternate-hosting.md` — запасной домен/CDN (Netlify, поддомен Vercel).

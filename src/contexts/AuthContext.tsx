@@ -112,9 +112,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
-    // Используем production URL для OAuth redirect
-    const redirectTo = import.meta.env.VITE_SITE_URL 
-      || (import.meta.env.PROD ? 'https://swype-meal3.vercel.app' : window.location.origin);
+    // Redirect back to the host the user is on (works for the main domain,
+    // Vercel previews, Netlify and any alternate host). An explicit
+    // VITE_SITE_URL still overrides it. The host must be allowed in
+    // Supabase → Authentication → URL Configuration.
+    const redirectTo = import.meta.env.VITE_SITE_URL || window.location.origin;
     
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
