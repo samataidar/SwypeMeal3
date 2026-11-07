@@ -59,11 +59,26 @@ if (!in_array($method, ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTION
 
 $skip = ['host', 'connection', 'content-length', 'accept-encoding', 'transfer-encoding'];
 $headers = [];
+$hasAuthorization = false;
 foreach (request_headers() as $name => $value) {
     if (in_array(strtolower($name), $skip, true)) {
         continue;
     }
+    if (strtolower($name) === 'authorization') {
+        $hasAuthorization = true;
+    }
     $headers[] = $name . ': ' . $value;
+}
+
+// Apache/PHP-FPM может скрывать Authorization от getallheaders().
+// Значение прокидывается из .htaccess (E=HTTP_AUTHORIZATION) или CGIPassAuth.
+if (!$hasAuthorization) {
+    $authorization = $_SERVER['HTTP_AUTHORIZATION']
+        ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+        ?? '';
+    if ($authorization !== '') {
+        $headers[] = 'Authorization: ' . $authorization;
+    }
 }
 
 $ch = curl_init($target);

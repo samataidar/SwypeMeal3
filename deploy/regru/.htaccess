@@ -4,6 +4,11 @@ DirectoryIndex index.html
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
+  # Apache/PHP-FPM на shared-хостинге часто скрывает заголовок Authorization.
+  # Передаём его в PHP через переменную окружения (proxy.php её прочитает).
+  RewriteCond %{HTTP:Authorization} .
+  RewriteRule ^ - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
   # API и картинки проксируются через PHP (mod_proxy на shared-хостинге
   # обычно запрещён). Браузер остаётся на своём origin.
   RewriteRule ^api(/.*)?$ proxy.php [L,QSA]
