@@ -34,6 +34,8 @@ dist-ssr
 # Alternate-host build artifacts (use `npm run build`)
 dist-netlify/
 swypemeal-netlify.zip
+_regru_pkg/
+swypemeal-regru.zip
 
 # Backend data
 backend/data/*.json

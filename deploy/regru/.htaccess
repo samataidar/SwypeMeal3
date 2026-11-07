@@ -1,0 +1,24 @@
+Options -Indexes
+DirectoryIndex index.html
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # API и картинки проксируются через PHP (mod_proxy на shared-хостинге
+  # обычно запрещён). Браузер остаётся на своём origin.
+  RewriteRule ^api(/.*)?$ proxy.php [L,QSA]
+  RewriteRule ^images(/.*)?$ proxy.php [L,QSA]
+
+  # SPA: всё, чего нет на диске, отдаём index.html
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  # index.html не кэшируем, чтобы после обновления подхватывался новый бандл
+  <FilesMatch "^index\.html$">
+    Header set Cache-Control "no-store, must-revalidate"
+  </FilesMatch>
+</IfModule>
